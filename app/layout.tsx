@@ -11,12 +11,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className="bg-[#F3F4F6] min-h-screen">{children}</body>
     </html>
-  );
+  )
 }

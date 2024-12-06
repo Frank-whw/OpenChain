@@ -7,9 +7,15 @@ import Graph from '@/components/Graph'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fetchGraphData, fetchRelationshipAnalysis } from '@/app/utils/api'
 
+interface GraphDataType {
+  center: { id: string; openrank: number };
+  nodes: { id: string; openrank: number }[];
+  links: { source: string; target: string }[];
+}
+
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [graphData, setGraphData] = useState(null)
+  const [graphData, setGraphData] = useState<GraphDataType | null>(null)
   const [selectedNode, setSelectedNode] = useState(null)
   const [analysis, setAnalysis] = useState('')
   const [platform, setPlatform] = useState('GitHub')
@@ -42,12 +48,27 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="container mx-auto p-4">
-        <div className="flex flex-col items-center space-y-6">
-          <h1 className="text-4xl font-bold text-black mt-8">OpenChain</h1>
-          
-          <div className="flex items-center gap-4 w-full max-w-3xl">
+    <main className="min-h-screen bg-[#F3F4F6] relative">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-full max-w-7xl">
+          {graphData && (
+            <div className="w-full h-[600px] mt-8">
+              <Graph
+                data={graphData}
+                onNodeClick={handleNodeClick}
+                selectedNode={selectedNode}
+                analysis={analysis}
+                type={type.toLowerCase() as 'user' | 'repo'}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="relative z-10">
+        <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow max-w-4xl mx-auto mt-8">
+          <h1 className="text-2xl font-bold">OpenChain</h1>
+          <div className="flex flex-wrap gap-4 mt-6">
             <Select value={platform} onValueChange={setPlatform}>
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="Platform" />
@@ -91,19 +112,7 @@ export default function Home() {
             </Button>
           </div>
         </div>
-        
-        {graphData && (
-          <div className="w-full h-[600px] mt-8">
-            <Graph
-              data={graphData}
-              onNodeClick={handleNodeClick}
-              selectedNode={selectedNode}
-              analysis={analysis}
-              type={type.toLowerCase() as 'user' | 'repo'}
-            />
-          </div>
-        )}
       </div>
-    </div>
+    </main>
   )
 }
