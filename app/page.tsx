@@ -67,8 +67,8 @@ export default function Home() {
 
       <div className="relative z-10">
         <div className="bg-white rounded-lg shadow-lg p-8 hover:shadow-xl transition-shadow max-w-4xl mx-auto mt-8">
-          <h1 className="text-2xl font-bold">OpenChain</h1>
-          <div className="flex flex-wrap gap-4 mt-6">
+          <h1 className="text-2xl font-bold text-center mb-6">OpenChain</h1>
+          <div className="flex flex-wrap gap-4">
             <Select value={platform} onValueChange={setPlatform}>
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="Platform" />
