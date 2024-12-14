@@ -1,27 +1,73 @@
-export async function fetchGraphData(platform: string, what: string, name: string) {
-  // 这里应该是实际的API调用
-  // 为了演示，我们返回一些模拟数据
-  return {
-    center: { id: name, openrank: 100 },
-    nodes: [
-      { id: name, openrank: 100 },
-      { id: "repo1", openrank: 50 },
-      { id: "repo2", openrank: 30 },
-      { id: "repo3", openrank: 70 },
-      // ... 更多节点
-    ],
-    links: [
-      { source: name, target: "repo1" },
-      { source: name, target: "repo2" },
-      { source: name, target: "repo3" },
-      // ... 更多链接
-    ]
+export interface RecommendationResult {
+  success: boolean;
+  data?: {
+    nodes: Array<{
+      id: string;
+      type: 'user' | 'repo';
+      metrics: {
+        size: number;
+        stars?: number;
+        followers?: number;
+        [key: string]: any;
+      };
+      similarity: number;
+    }>;
+    links: Array<{
+      source: string;
+      target: string;
+      value: number;
+    }>;
+    center: {
+      id: string;
+      type: 'user' | 'repo';
+    };
+  };
+  error?: string;
+}
+
+export async function fetchRecommendations(
+  type: 'user' | 'repo',
+  name: string,
+  find: 'user' | 'repo'
+): Promise<RecommendationResult> {
+  try {
+    const url = `/api/recommend?type=${type}&name=${encodeURIComponent(name)}&find=${find}`
+    
+    console.log('Fetching recommendations:', url)
+    
+    const response = await fetch(url)
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.detail || data.message || '请求失败')
+    }
+    
+    if (!data.success) {
+      throw new Error(data.error || '获取数据失败')
+    }
+    
+    return data
+  } catch (error: any) {
+    console.error('API Error:', error)
+    throw new Error(error.message || '网络错误')
   }
 }
 
-export async function fetchRelationshipAnalysis(centerId: string, nodeId: string) {
-  // 这里应该是实际的API调用，可能包括调用OpenAI的接口
-  // 为了演示，我们返回一些模拟数据
-  return `这是 ${centerId} 和 ${nodeId} 之间关系的分析...`
+export async function fetchMetrics(type: 'user' | 'repo', name: string) {
+  try {
+    const response = await fetch(
+      `/api/metrics?type=${type}&name=${encodeURIComponent(name)}`
+    )
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.detail || data.message || '获取指标失败')
+    }
+    
+    return data
+  } catch (error: any) {
+    console.error('Metrics Error:', error)
+    throw new Error(error.message || '网络错误')
+  }
 }
 
