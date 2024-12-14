@@ -10,7 +10,7 @@ import math
 
 # 全局配置
 N = 10  # 推荐结果数量
-GITHUB_TOKEN = "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"  # GitHub API token
+GITHUB_TOKEN = ""  # GitHub API token
 GITHUB_API = "https://api.github.com"
 OPENDIGGER_API = "https://oss.open-digger.cn"
 MAX_WORKERS = 10  # 最大并行线程数
