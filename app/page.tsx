@@ -16,7 +16,7 @@ export default function Home() {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [type, setType] = useState<EntityType>('repo')
+  const [type, setType] = useState<EntityType>('user')
   const [findType, setFindType] = useState<EntityType>('repo')
 
   const handleSearch = async () => {
@@ -38,6 +38,7 @@ export default function Home() {
       }
       
       setGraphData(result.data)
+      setSelectedNode(null)
     } catch (error: any) {
       setError(error.message || '搜索失败')
       console.error('Search error:', error)
@@ -46,37 +47,29 @@ export default function Home() {
     }
   }
 
-  const handleTypeChange = (value: string) => {
-    setType(value as EntityType);
-  };
-
-  const handleFindTypeChange = (value: string) => {
-    setFindType(value as EntityType);
-  };
-
   return (
-    <main className="min-h-screen bg-[#F3F4F6] relative">
-      <div className="relative z-10">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-4xl mx-auto mt-8">
-          <h1 className="text-2xl font-bold text-center mb-6">OpenChain</h1>
+    <main className="min-h-screen bg-[#F3F4F6]">
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h1 className="text-2xl font-bold text-center mb-8">OpenChain</h1>
           
-          <div className="flex flex-wrap gap-4">
-            <strong className="self-center">GitHub</strong>
-
-            <div className="flex gap-4">
-              <Select value={type} onValueChange={handleTypeChange}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="主体类型" />
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="font-bold text-gray-700">GitHub</span>
+            
+            <div className="flex gap-3">
+              <Select value={type} onValueChange={value => setType(value as EntityType)}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue placeholder="用户" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="repo">仓库</SelectItem>
                   <SelectItem value="user">用户</SelectItem>
+                  <SelectItem value="repo">仓库</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select value={findType} onValueChange={handleFindTypeChange}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="推荐类型" />
+              <Select value={findType} onValueChange={value => setFindType(value as EntityType)}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue placeholder="推荐仓库" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="repo">推荐仓库</SelectItem>
@@ -87,7 +80,7 @@ export default function Home() {
 
             <Input
               type="text"
-              placeholder={type === 'repo' ? "输入仓库 (例: owner/repo)" : "输入用户"}
+              placeholder={type === 'repo' ? "输入仓库 (例: owner/repo)" : "输入用户名"}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1"
@@ -96,17 +89,11 @@ export default function Home() {
             <Button 
               onClick={handleSearch}
               className="bg-[#4285F4] hover:bg-[#3367D6] text-white px-8 rounded-full"
+              disabled={loading}
             >
-              查找
+              {loading ? '查找中...' : '查找'}
             </Button>
           </div>
-
-          {loading && (
-            <div className="mt-4 text-center text-gray-600">
-              <div className="animate-spin inline-block w-6 h-6 border-4 border-t-blue-500 border-blue-200 rounded-full mr-2"></div>
-              正在分析中...
-            </div>
-          )}
 
           {error && (
             <div className="mt-4 text-center text-red-500">
@@ -116,7 +103,7 @@ export default function Home() {
         </div>
 
         {graphData && (
-          <div className="w-full h-[600px] mt-8">
+          <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 h-[600px]">
             <Graph
               data={graphData}
               onNodeClick={setSelectedNode}

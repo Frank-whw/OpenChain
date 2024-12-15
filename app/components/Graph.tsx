@@ -1,6 +1,5 @@
 'use client';
-import { schemeCategory10, schemePaired } from 'd3-scale-chromatic';
-import { scaleOrdinal } from 'd3-scale';
+
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 
@@ -33,134 +32,153 @@ interface GraphProps {
 
 const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!data || !svgRef.current) return;
+    if (!data || !svgRef.current || !containerRef.current) return;
 
-    const svg = d3.select<SVGSVGElement, unknown>(svgRef.current);
-    svg.selectAll("*").remove();
+    const container = containerRef.current;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
 
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    // 初始化 SVG
+    const svg = d3.select(svgRef.current)
+      .attr('width', '100%')
+      .attr('height', '100%')
+      .attr('viewBox', [0, 0, width, height].join(' '))
+      .style('display', 'block')
+      .style('background', 'transparent');
 
-    // 创建一个容器组来包含所有可缩放的元素
-    const g = svg.append("g");
+    svg.selectAll('*').remove();
 
-    // 定义缩放行为
+    // 创建主绘图组
+    const g = svg.append('g')
+      .attr('width', width)
+      .attr('height', height);
+
+    // 缩放行为
     const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 4])
-      .on("zoom", (event) => {
-        g.attr("transform", event.transform.toString());
+      .scaleExtent([0.2, 4])
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform.toString());
       });
 
-    // 应用缩放行为到 SVG
-    (svg as any).call(zoom);
+    svg.call(zoom);
 
-    const color = type === 'user' ? d3.scaleOrdinal(schemeCategory10) : d3.scaleOrdinal(schemePaired);
-
+    // 力导向图配置
     const simulation = d3.forceSimulation<Node>(data.nodes)
-      .force("link", d3.forceLink<Node, Link>(data.links).id(d => d.id).distance(100))
-      .force("charge", d3.forceManyBody().strength(-1000))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(30));
+      .force('link', d3.forceLink<Node, Link>(data.links)
+        .id(d => d.id)
+        .distance(80))
+      .force('charge', d3.forceManyBody()
+        .strength(-300))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide()
+        .radius(40));
 
-    const link = g.append("g")
-      .attr("stroke", "#999")
-      .attr("stroke-opacity", 0.6)
-      .selectAll("line")
+    // 绘制连接线
+    const link = g.append('g')
+      .selectAll('line')
       .data(data.links)
-      .join("line")
-      .attr("stroke-width", d => Math.sqrt(d.value));
+      .join('line')
+      .attr('stroke', '#ccc')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', d => Math.sqrt(d.value));
 
-    const node = g.append("g")
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1.5)
-      .selectAll("circle")
+    // 创建节点组
+    const node = g.append('g')
+      .selectAll<SVGGElement, Node>('g')
       .data(data.nodes)
-      .join("circle")
-      .attr("r", d => Math.sqrt(d.openrank) * 5)
-      .attr("fill", d => d.id === data.center.id ? "#ff0000" : color(String(d.group)))
-      .call(drag(simulation) as any);
+      .join<SVGGElement>('g');
 
-    // 添加节点标签
-    const labels = g.append("g")
-      .selectAll("text")
-      .data(data.nodes)
-      .join("text")
+    // 拖拽行为
+    const dragBehavior = d3.drag<SVGGElement, Node>()
+      .on('start', (event) => {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        const d = event.subject;
+        d.fx = d.x;
+        d.fy = d.y;
+      })
+      .on('drag', (event) => {
+        const d = event.subject;
+        d.fx = event.x;
+        d.fy = event.y;
+      })
+      .on('end', (event) => {
+        if (!event.active) simulation.alphaTarget(0);
+        const d = event.subject;
+        d.fx = null;
+        d.fy = null;
+      });
+
+    node.call(dragBehavior);
+
+    // 添加节点圆形
+    node.append('circle')
+      .attr('r', d => Math.max(Math.sqrt(d.openrank) * 4, 12))
+      .attr('fill', d => d.id === data.center.id ? '#ff6b6b' : '#4285F4')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5);
+
+    // 添加文本标签
+    node.append('text')
       .text(d => d.id)
-      .attr("font-size", "8px")
-      .attr("dx", 12)
-      .attr("dy", 4);
+      .attr('x', d => Math.max(Math.sqrt(d.openrank) * 4, 12) + 4)
+      .attr('y', 4)
+      .attr('font-size', '10px')
+      .attr('fill', '#333');
 
-    node.append("title")
-      .text(d => d.id);
+    // 更新位置
+    simulation.on('tick', () => {
+      link
+        .attr('x1', d => (d.source as Node).x!)
+        .attr('y1', d => (d.source as Node).y!)
+        .attr('x2', d => (d.target as Node).x!)
+        .attr('y2', d => (d.target as Node).y!);
 
-    node.on("click", (event, d) => {
+      node.attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+
+    // 点击事件
+    node.on('click', (event, d) => {
       event.stopPropagation();
       onNodeClick(d);
     });
 
-    simulation.on("tick", () => {
-      link
-        .attr("x1", d => (d.source as Node).x || 0)
-        .attr("y1", d => (d.source as Node).y || 0)
-        .attr("x2", d => (d.target as Node).x || 0)
-        .attr("y2", d => (d.target as Node).y || 0);
-
-      node
-        .attr("cx", d => d.x || 0)
-        .attr("cy", d => d.y || 0);
-
-      labels
-        .attr("x", d => d.x || 0)
-        .attr("y", d => d.y || 0);
-    });
-
-    function drag(simulation: d3.Simulation<Node, Link>) {
-      function dragstarted(event: any) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        event.subject.fx = event.subject.x;
-        event.subject.fy = event.subject.y;
-      }
-
-      function dragged(event: any) {
-        event.subject.fx = event.x;
-        event.subject.fy = event.y;
-      }
-
-      function dragended(event: any) {
-        if (!event.active) simulation.alphaTarget(0);
-        event.subject.fx = null;
-        event.subject.fy = null;
-      }
-
-      return d3.drag<SVGElement, Node>()
-        .on("start", dragstarted)
-        .on("drag", dragged)
-        .on("end", dragended);
-    }
-
-    // 双击重置缩放
-    svg.on("dblclick.zoom", null);
-    svg.on("dblclick", () => {
-      svg.transition()
-        .duration(750)
-        .call(zoom.transform as any, d3.zoomIdentity);
-    });
-
-  }, [data, type]);
+    return () => {
+      simulation.stop();
+    };
+  }, [data, type, onNodeClick]);
 
   return (
-    <div className="w-full h-full">
-      <svg ref={svgRef} width="100%" height="100%" />
+    <div 
+      ref={containerRef} 
+      style={{ 
+        width: '100%', 
+        height: 'calc(100vh - 6rem)',
+        position: 'relative',
+        background: 'transparent'
+      }}
+    >
+      <svg 
+        ref={svgRef}
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          display: 'block',
+          background: 'transparent'
+        }} 
+      />
       {selectedNode && (
         <div className="absolute p-4 bg-white rounded-lg shadow-lg left-4 bottom-4 max-w-md">
           <h3 className="text-lg font-bold mb-2">{selectedNode.id}</h3>
-          <p className="text-sm">OpenRank: {selectedNode.openrank.toFixed(2)}</p>
+          <p className="text-sm">
+            OpenRank: {selectedNode.openrank ? selectedNode.openrank.toFixed(2) : 'N/A'}
+          </p>
         </div>
       )}
     </div>
   );
 };
 
-export default Graph; 
+export default Graph;
