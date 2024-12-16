@@ -49,8 +49,8 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#F3F4F6]">
-      <div className="max-w-4xl mx-auto py-8 px-4">
-        <div className="bg-white rounded-2xl shadow-lg p-6">
+      <div className="mx-auto py-8 px-4">
+        <div className="bg-white rounded-2xl shadow-lg p-6 max-w-4xl mx-auto">
           <h1 className="text-2xl font-bold text-center mb-8">OpenChain</h1>
           
           <div className="flex flex-wrap items-center gap-4">
@@ -103,7 +103,7 @@ export default function Home() {
         </div>
 
         {graphData && (
-          <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 h-[600px]">
+          <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 h-[300xl] w-full">
             <Graph
               data={graphData}
               onNodeClick={setSelectedNode}
