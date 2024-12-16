@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const type = searchParams.get('type')
   const name = searchParams.get('name')
   const find = searchParams.get('find')
-  const count = searchParams.get('count') || '10'
+  const count = searchParams.get('count')
 
   // 参数验证
   if (!type || !name || !find) {
@@ -43,7 +43,8 @@ export async function GET(request: Request) {
 
   try {
     const baseUrl = 'http://localhost:8000/api'
-    const url = `${baseUrl}/recommend?type=${encodeURIComponent(type)}&name=${encodeURIComponent(name)}&find=${encodeURIComponent(find)}&count=${encodeURIComponent(count)}`
+    const countParam = count ? `&count=${encodeURIComponent(count)}` : ''
+    const url = `${baseUrl}/recommend?type=${encodeURIComponent(type)}&name=${encodeURIComponent(name)}&find=${encodeURIComponent(find)}${countParam}`
 
     console.log('Calling backend API:', url);
 

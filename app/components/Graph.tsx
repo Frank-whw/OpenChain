@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { message } from 'antd';
 
 export interface Node extends d3.SimulationNodeDatum {
   id: string;
@@ -9,8 +10,9 @@ export interface Node extends d3.SimulationNodeDatum {
   openrank: number;
   x?: number;
   y?: number;
-  aiResponse?: string;
-  isLoading?: boolean;
+  metrics: {
+    size: number;
+  };
 }
 
 interface Link extends d3.SimulationLinkDatum<Node> {
@@ -23,6 +25,17 @@ interface GraphData {
   nodes: Node[];
   links: Link[];
   center: Node;
+  status?: string;
+  message?: string;
+  recommendations?: Array<{
+    name: string;
+    metrics: {
+      stars?: number;
+      forks?: number;
+      size?: number;
+    };
+    similarity: number;
+  }>;
 }
 
 interface GraphProps {
@@ -30,23 +43,76 @@ interface GraphProps {
   onNodeClick: (node: Node) => void;
   selectedNode: Node | null;
   type: 'user' | 'repo';
-  onRequestAIResponse?: (nodeId: string) => Promise<string>;
 }
 
-const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type, onRequestAIResponse }) => {
+const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [popupPosition, setPopupPosition] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
+  const [error, setError] = useState<string | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // 请求 AI 分析
+  const requestAnalysis = async (nodeA: string, nodeB: string) => {
+    setIsLoading(true);
+    setAiAnalysis('');
+    
+    try {
+      console.log('Requesting analysis for:', nodeA, nodeB);
+      const response = await fetch(`/api/analyze?node_a=${encodeURIComponent(nodeA)}&node_b=${encodeURIComponent(nodeB)}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Analysis response:', data);
+      
+      if (data.status === 'success' && data.analysis) {
+        setAiAnalysis(data.analysis);
+      } else {
+        throw new Error(data.message || '分析失败，请稍后重试');
+      }
+    } catch (error) {
+      console.error('Failed to get AI analysis:', error);
+      setAiAnalysis(error instanceof Error ? error.message : '获取 AI 分析失败，请稍后重试');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!data || !svgRef.current || !containerRef.current) return;
+
+    // 检查是否有错误信息
+    if (data.status === 'error') {
+      message.error(data.message || '获取推荐数据失败');
+      setError(data.message || '获取推荐数据失败');
+      return;
+    }
+
+    setError(null);
+
+    // 检查节点数据而不是 recommendations
+    if (!data.nodes || data.nodes.length === 0) {
+      message.warning('没有找到推荐结果');
+      return;
+    }
 
     // 获取容器的宽高和红框位置
     const container = containerRef.current;
     const rect = container.getBoundingClientRect();
     setPopupPosition({
-      left:  rect.left - 60, // 红框 X 坐标
-      top: rect.top - 260 ,  // 红框 Y 坐标
+      left: rect.left - 60,
+      top: rect.top - 260,
     });
 
     const width = container.clientWidth;
@@ -78,9 +144,15 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type, on
 
     // 计算节点半径
     const getNodeRadius = (d: Node) => {
-      if (d.id === data.center.id) return 40;  // 中心节点最大
-      if (d.id.startsWith('#')) return 15;     // Issue 节点较小
-      return Math.max(Math.sqrt(d.openrank) * 10, 20);  // 其他节点基于 openrank
+      if (d.id === data.center.id) return 45;  // 中心节点固定大小为45
+
+      // 计算除中心节点外的最大和最小size
+      const sizes = data.nodes.filter(n => n.id !== data.center.id).map(n => n.metrics.size);
+      const maxSize = Math.max(...sizes);
+      const minSize = Math.min(...sizes);
+      
+      // 使用线性映射计算节点大小
+      return 20 + ((d.metrics.size - minSize) / (maxSize - minSize)) * 20;
     };
 
     // 获取节点颜色
@@ -101,15 +173,24 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type, on
     const simulation = d3.forceSimulation<Node>(data.nodes)
       .force('link', d3.forceLink<Node, Link>(data.links)
         .id(d => d.id)
-        .distance(150))
+        .distance(link => {
+          // value 在 0-1 之间，value 越大表示相似度越高，距离应该越小
+          const minDistance = 80;
+          const maxDistance = 300;
+          // 直接用 1 - value 计算距离，不需要再做归一化
+          return minDistance + (1 - link.value) * (maxDistance - minDistance);
+        }))
       .force('charge', d3.forceManyBody()
-        .strength(-800))
-      .force('center', d3.forceCenter(width / 2, height / 2))
+        .strength(d => d.id === data.center.id ? -1000 : -400))
+      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.1))
       .force('collision', d3.forceCollide()
-        .radius(d => {
-          if (d.id === data.center.id) return 45;
-          return 30;
-        }));
+        .radius(d => getNodeRadius(d) + 5)
+        .strength(0.5))
+      .force('radial', d3.forceRadial(
+        d => d.id === data.center.id ? 0 : 150,
+        width / 2,
+        height / 2
+      ).strength(0.3));
 
     // 绘制连接线
     const link = g.append('g')
@@ -150,11 +231,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type, on
 
     // 添加节点圆形
     node.append('circle')
-      .attr('r', d => {
-        if (d.id === data.center.id) return 40;  // 中心节点最大
-        if (d.id.startsWith('#')) return 20;     // Issue 节点
-        return 25;  // 其他节点统一大小
-      })
+      .attr('r', getNodeRadius)
       .attr('fill', getNodeColor)
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
@@ -185,30 +262,43 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type, on
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
-    // 点击事件
+    // 修改点击事件处理
     node.on('click', async (event, d) => {
       event.stopPropagation();
       onNodeClick(d);
       
-      // 如果点击的不是中心节点，且提供了 AI 响应请求函数，则请求 AI 响应
-      if (d.id !== data.center.id && onRequestAIResponse && !d.aiResponse && !d.isLoading) {
-        try {
-          d.isLoading = true;  // 设置加载状态
-          const response = await onRequestAIResponse(d.id);
-          d.aiResponse = response;  // 保存 AI 响应
-        } catch (error) {
-          console.error('Failed to get AI response:', error);
-          d.aiResponse = '获取 AI 分析失败，请稍后重试。';
-        } finally {
-          d.isLoading = false;  // 清除加载状态
-        }
+      // 如果点击的不是中心节点，请求 AI 分析
+      if (d.id !== data.center.id) {
+        await requestAnalysis(data.center.id, d.id);
       }
     });
 
     return () => {
       simulation.stop();
     };
-  }, [data, type, onNodeClick, onRequestAIResponse]);
+  }, [data, onNodeClick]);
+
+  // 如果有错误，显示错误信息
+  if (error) {
+    return (
+      <div style={{ 
+        width: '100%', 
+        height: '400px', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        flexDirection: 'column',
+        color: '#ff4d4f',
+        backgroundColor: '#fff1f0',
+        border: '1px solid #ffccc7',
+        borderRadius: '4px',
+        padding: '20px'
+      }}>
+        <h3>推荐失败</h3>
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div 
@@ -247,14 +337,14 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type, on
                 </span>
               </div>
             </div>
-            {selectedNode.isLoading ? (
+            {isLoading ? (
               <div className="flex items-center justify-center h-32">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
               </div>
-            ) : selectedNode.aiResponse ? (
+            ) : aiAnalysis ? (
               <div className="prose prose-sm max-w-none">
                 <div className="whitespace-pre-wrap text-gray-700">
-                  {selectedNode.aiResponse}
+                  {aiAnalysis}
                 </div>
               </div>
             ) : (
