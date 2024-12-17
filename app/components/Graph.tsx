@@ -151,8 +151,16 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       const maxSize = Math.max(...sizes);
       const minSize = Math.min(...sizes);
       
-      // 使用线性映射计算节点大小
-      return 20 + ((d.metrics.size - minSize) / (maxSize - minSize)) * 20;
+      // 如果是用户节点，使用 followers 或 size 作为基准
+      if (d.type === 'user') {
+        const userMetrics = d.metrics as any;
+        const userSize = userMetrics.followers || userMetrics.size || 1;
+        return 20 + ((userSize - minSize) / (maxSize - minSize || 1)) * 20;
+      }
+      
+      // 仓库节点使用 size
+      const repoSize = d.metrics.size || 1;
+      return 20 + ((repoSize - minSize) / (maxSize - minSize || 1)) * 20;
     };
 
     // 获取节点颜色
@@ -294,8 +302,19 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         borderRadius: '4px',
         padding: '20px'
       }}>
-        <h3>推荐失败</h3>
-        <p>{error}</p>
+        <h3 className="text-xl font-bold mb-4">推荐失败</h3>
+        <div className="text-center">
+          <p className="mb-2">{error}</p>
+          <p className="text-sm text-gray-500">
+            可能的原因：
+            <ul className="list-disc text-left mt-2 ml-4">
+              <li>GitHub API 访问限制</li>
+              <li>网络连接问题</li>
+              <li>用户或仓库不存在</li>
+              <li>没有找到合适的推荐结果</li>
+            </ul>
+          </p>
+        </div>
       </div>
     );
   }
@@ -331,11 +350,6 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           <div className="bg-white rounded-lg shadow-lg p-6 max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold">{selectedNode.id}</h3>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500">
-                  OpenRank: {selectedNode.openrank ? selectedNode.openrank.toFixed(2) : 'N/A'}
-                </span>
-              </div>
             </div>
             {isLoading ? (
               <div className="flex items-center justify-center h-32">

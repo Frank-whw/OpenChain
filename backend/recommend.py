@@ -277,33 +277,30 @@ def get_user_scale(username: str) -> float:
     try:
         # 获取用户基本信息
         user_info = get_user_info(username)
+        if not user_info:
+            return 20  # 最小规模为 20
+            
         followers = user_info.get('followers', 0)
+        following = user_info.get('following', 0)
         public_repos = user_info.get('public_repos', 0)
         
-        # 获取用户的活跃度
-        response = session.get(f"{OPENDIGGER_API}/github/{username}/activity.json")
-        activity = 0
-        if response.status_code == 200:
-            activity_data = response.json()
-            # 计算最近一年的平均活跃度
-            recent_activity = list(activity_data.values())[-12:]
-            activity = sum(recent_activity) / len(recent_activity) if recent_activity else 0
+        # 计算基础规模（确保至少为1）
+        base_scale = max(1, followers + following + public_repos)
         
-        # 获取的代码贡献量
+        # 获取用户的仓库列表
         repos = get_user_repos(username)
-        total_commits = sum(repo.get('size', 0) for repo in repos) / 1000  # 转换为KB
+        total_size = sum(repo.get('size', 0) for repo in repos)
         
-        # 综合计算规模
-        scale = (
-            0.3 * math.log(followers + 1) +  # 关注者数量
-            0.2 * math.log(public_repos + 1) +  # 公开仓库数量
-            0.3 * activity +  # 活跃度
-            0.2 * math.log(total_commits + 1)  # 代码贡献量
-        )
+        # 综合计算最终规模
+        final_scale = math.sqrt(base_scale * (total_size + 1))
         
-        return max(1, scale)
-    except:
-        return 1
+        # 归一化到 20-40 范围
+        normalized_scale = 20 + (min(final_scale, 10000) / 10000) * 20
+        
+        return normalized_scale
+    except Exception as e:
+        logger.error(f"Error calculating user scale for {username}: {str(e)}")
+        return 20  # 错误时返回最小规模
 
 def get_repo_scale(repo_full_name: str) -> float:
     """计算仓库规模指标（综合多个维度）"""
@@ -334,9 +331,13 @@ def get_repo_scale(repo_full_name: str) -> float:
             0.1 * math.log(size + 1)  # 代码量
         )
         
-        return max(1, scale)
-    except:
-        return 1
+        # 归一化到 20-40 范围
+        normalized_scale = 20 + (min(scale, 10) / 10) * 20
+        
+        return normalized_scale
+    except Exception as e:
+        logger.error(f"Error calculating repo scale for {repo_full_name}: {str(e)}")
+        return 20  # 错误时返回最小规模
 
 def calculate_user_user_similarity(user1: str, user2: str) -> float:
     """计算用户-用户相似度（多维度）"""
@@ -472,77 +473,376 @@ def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, 
         if type_str == 'user':
             # 获取用户信息
             user_info = get_user_info(name)
-            if user_info is None:  # 明确检查是否为 None
-                logger.warning(f"User not found or API error: {name}")
+            if user_info is None:
+                error_msg = f'用户 {name} 不存在或无法访问'
+                logger.warning(error_msg)
                 base_response.update({
                     'status': 'error',
-                    'message': f'用户 {name} 不存在或无法访问'
+                    'message': error_msg
                 })
                 return base_response
+
+            # 计算用户规模
+            user_scale = get_user_scale(name)
 
             # 更新用户指标
             base_response['metrics'].update({
                 'followers': user_info.get('followers', 0),
                 'following': user_info.get('following', 0),
                 'public_repos': user_info.get('public_repos', 0),
-                'size': user_info.get('followers', 0)
+                'size': user_scale  # 使用计算出的规模作为 size
             })
 
-            if find == 'repo':
+            if find == 'user':
+                try:
+                    # 获取用户的关注者
+                    followers = _get_user_followers(name)
+                    if not followers:
+                        error_msg = f'无法获取用户 {name} 的关注者信息，可能是由于 API 限制或网络问题'
+                        logger.warning(error_msg)
+                        base_response.update({
+                            'status': 'error',
+                            'message': error_msg
+                        })
+                        return base_response
+
+                    # 获取活跃用户作为备选
+                    active_users = get_active_users()
+                    if not active_users:
+                        error_msg = '无法获取活跃用户列表，可能是由于 API 限制或网络问题'
+                        logger.warning(error_msg)
+                        base_response.update({
+                            'status': 'error',
+                            'message': error_msg
+                        })
+                        return base_response
+
+                    # 合并候选用户列表
+                    candidates = list(set([user['login'] for user in followers] + [user['login'] for user in active_users]))
+                    if not candidates:
+                        error_msg = '未找到合适的推荐用户'
+                        logger.warning(error_msg)
+                        base_response.update({
+                            'status': 'error',
+                            'message': error_msg
+                        })
+                        return base_response
+
+                    # 计算相似度
+                    similarities = []
+                    for candidate in candidates[:count]:
+                        if candidate != name:  # 排除自己
+                            try:
+                                similarity = calculate_user_user_similarity(name, candidate)
+                                if similarity > 0:
+                                    similarities.append((candidate, similarity))
+                            except Exception as e:
+                                logger.error(f"Error calculating similarity for {candidate}: {str(e)}")
+
+                    # 排序并返回结果
+                    similarities.sort(key=lambda x: x[1], reverse=True)
+                    for user, similarity in similarities[:count]:
+                        try:
+                            user_info = get_user_info(user)
+                            if user_info:
+                                # 计算推荐用户的规模
+                                recommended_user_scale = get_user_scale(user)
+                                base_response['recommendations'].append({
+                                    'name': user,
+                                    'metrics': {
+                                        'followers': user_info.get('followers', 0),
+                                        'following': user_info.get('following', 0),
+                                        'public_repos': user_info.get('public_repos', 0),
+                                        'size': recommended_user_scale  # 添加规模指标
+                                    },
+                                    'similarity': similarity
+                                })
+                        except Exception as e:
+                            logger.error(f"Error getting info for user {user}: {str(e)}")
+
+                except Exception as e:
+                    error_msg = f'推荐用户时发生错误: {str(e)}'
+                    logger.error(error_msg)
+                    base_response.update({
+                        'status': 'error',
+                        'message': error_msg
+                    })
+                    return base_response
+            elif find == 'repo':
                 try:
                     # 获取用户的仓库列表
                     user_repos = get_user_repos(name)
                     if not user_repos:
+                        error_msg = f'无法获取用户 {name} 的仓库列表，可能是由于 API 限制或网络问题'
+                        logger.warning(error_msg)
                         base_response.update({
                             'status': 'error',
-                            'message': f'用户 {name} 没有可用的仓库信息'
+                            'message': error_msg
                         })
                         return base_response
 
                     # 获取用户的语言偏好
                     languages = _get_language_preferences(user_repos)
-                    # 获取推荐的仓库
-                    trending_repos = _get_trending_repos(languages)
                     
+                    # 获取相似语言的热门仓库
+                    trending_repos = _get_trending_repos(languages)
                     if not trending_repos:
+                        error_msg = '无法获取热门仓库列表，可能是由于 API 限制或网络问题'
+                        logger.warning(error_msg)
                         base_response.update({
                             'status': 'error',
-                            'message': '无法获取推荐仓库，可能是由于 API 限制或网络问题'
+                            'message': error_msg
                         })
                         return base_response
-                    
-                    for repo in trending_repos[:count]:
-                        if isinstance(repo, dict):
-                            base_response['recommendations'].append({
-                                'name': repo.get('full_name', ''),
-                                'metrics': {
-                                    'stars': repo.get('stargazers_count', 0),
-                                    'forks': repo.get('forks_count', 0),
-                                    'size': repo.get('stargazers_count', 0)
-                                },
-                                'similarity': 0.8
-                            })
-                    
-                    if not base_response['recommendations']:
-                        base_response.update({
-                            'status': 'error',
-                            'message': '未找到合适的推荐仓库'
-                        })
-                    
+
+                    # 计算相似度
+                    similarities = []
+                    for repo in trending_repos:
+                        repo_full_name = repo.get('full_name')
+                        if repo_full_name:  # 排除用户自己的仓库
+                            try:
+                                similarity = calculate_user_repo_similarity(name, repo_full_name)
+                                similarities.append((repo_full_name, similarity))
+                            except Exception as e:
+                                logger.error(f"Error calculating similarity for {repo_full_name}: {str(e)}")
+
+                    # 排序并返回结果
+                    similarities.sort(key=lambda x: x[1], reverse=True)
+                    for repo_name, similarity in similarities[:count]:
+                        try:
+                            repo_info = get_repo_info(repo_name)
+                            if repo_info:
+                                base_response['recommendations'].append({
+                                    'name': repo_name,
+                                    'metrics': {
+                                        'stars': repo_info.get('stargazers_count', 0),
+                                        'forks': repo_info.get('forks_count', 0),
+                                        'watchers': repo_info.get('watchers_count', 0),
+                                        'size': repo_info.get('size', 0)
+                                    },
+                                    'similarity': max(0.1, similarity)  # 确保最小相似度为0.1
+                                })
+                        except Exception as e:
+                            logger.error(f"Error getting info for repo {repo_name}: {str(e)}")
+
+                    # 如果推荐结果不足，尝试获取更多候选仓库
+                    if len(base_response['recommendations']) < count:
+                        logger.info("Not enough recommendations, fetching more candidates...")
+                        # 获取更多候选仓库
+                        more_repos = _get_trending_repos([])  # 不限制语言
+                        for repo in more_repos:
+                            if len(base_response['recommendations']) >= count:
+                                break
+                            repo_full_name = repo.get('full_name')
+                            if repo_full_name and \
+                               repo_full_name not in [r['name'] for r in base_response['recommendations']]:
+                                try:
+                                    similarity = calculate_user_repo_similarity(name, repo_full_name)
+                                    repo_info = get_repo_info(repo_full_name)
+                                    if repo_info:
+                                        base_response['recommendations'].append({
+                                            'name': repo_full_name,
+                                            'metrics': {
+                                                'stars': repo_info.get('stargazers_count', 0),
+                                                'forks': repo_info.get('forks_count', 0),
+                                                'watchers': repo_info.get('watchers_count', 0),
+                                                'size': repo_info.get('size', 0)
+                                            },
+                                            'similarity': max(0.1, similarity)
+                                        })
+                                except Exception as e:
+                                    logger.error(f"Error processing additional repo {repo_full_name}: {str(e)}")
+
                 except Exception as e:
-                    error_msg = str(e)
-                    logger.error(f"Error in repo recommendation: {error_msg}")
+                    error_msg = f'推荐仓库时发生错误: {str(e)}'
+                    logger.error(error_msg)
                     base_response.update({
                         'status': 'error',
-                        'message': f'推荐过程发生错误: {error_msg}'
+                        'message': error_msg
+                    })
+                    return base_response
+
+        elif type_str == 'repo':
+            # 获取仓库信息
+            repo_info = get_repo_info(name)
+            if not repo_info:
+                error_msg = f'仓库 {name} 不存在或无法访问'
+                logger.warning(error_msg)
+                base_response.update({
+                    'status': 'error',
+                    'message': error_msg
+                })
+                return base_response
+
+            # 更新仓库指标
+            base_response['metrics'].update({
+                'stars': repo_info.get('stargazers_count', 0),
+                'forks': repo_info.get('forks_count', 0),
+                'watchers': repo_info.get('watchers_count', 0),
+                'size': repo_info.get('size', 0)
+            })
+
+            if find == 'user':
+                try:
+                    # 获取仓库的贡献者
+                    contributors = get_repo_contributors(name)
+                    if not contributors:
+                        error_msg = f'无法获取仓库 {name} 的贡献者信息，可能是由于 API 限制或网络问题'
+                        logger.warning(error_msg)
+                        base_response.update({
+                            'status': 'error',
+                            'message': error_msg
+                        })
+                        return base_response
+
+                    # 获取活跃用户作为备选
+                    active_users = get_active_users()
+                    if not active_users:
+                        error_msg = '无法获取活跃用户列表，可能是由于 API 限制或网络问题'
+                        logger.warning(error_msg)
+                        base_response.update({
+                            'status': 'error',
+                            'message': error_msg
+                        })
+                        return base_response
+
+                    # 合并候选用户列表
+                    candidates = list(set([user['login'] for user in contributors] + [user['login'] for user in active_users]))
+                    if not candidates:
+                        error_msg = '未找到合适的推荐用户'
+                        logger.warning(error_msg)
+                        base_response.update({
+                            'status': 'error',
+                            'message': error_msg
+                        })
+                        return base_response
+
+                    # 计算相似度
+                    similarities = []
+                    for candidate in candidates[:count]:
+                        try:
+                            similarity = calculate_user_repo_similarity(candidate, name)
+                            if similarity > 0:
+                                similarities.append((candidate, similarity))
+                        except Exception as e:
+                            logger.error(f"Error calculating similarity for {candidate}: {str(e)}")
+
+                    # 排序并返回结果
+                    similarities.sort(key=lambda x: x[1], reverse=True)
+                    for user, similarity in similarities[:count]:
+                        try:
+                            user_info = get_user_info(user)
+                            if user_info:
+                                base_response['recommendations'].append({
+                                    'name': user,
+                                    'metrics': {
+                                        'followers': user_info.get('followers', 0),
+                                        'following': user_info.get('following', 0),
+                                        'public_repos': user_info.get('public_repos', 0)
+                                    },
+                                    'similarity': similarity
+                                })
+                        except Exception as e:
+                            logger.error(f"Error getting info for user {user}: {str(e)}")
+
+                except Exception as e:
+                    error_msg = f'推荐用户时发生错误: {str(e)}'
+                    logger.error(error_msg)
+                    base_response.update({
+                        'status': 'error',
+                        'message': error_msg
+                    })
+                    return base_response
+
+            elif find == 'repo':
+                try:
+                    # 获取相似语言的热门仓库
+                    trending_repos = _get_trending_repos([repo_info.get('language')])
+                    if not trending_repos:
+                        error_msg = '无法获取热门仓库列表，可能是由于 API 限制或网络问题'
+                        logger.warning(error_msg)
+                        base_response.update({
+                            'status': 'error',
+                            'message': error_msg
+                        })
+                        return base_response
+
+                    # 计算相似度
+                    similarities = []
+                    for repo in trending_repos:
+                        repo_full_name = repo.get('full_name')
+                        if repo_full_name and repo_full_name != name:  # 排除自己
+                            try:
+                                similarity = calculate_repo_repo_similarity(name, repo_full_name)
+                                # 移除相似度大于0的限制，保留所有结果
+                                similarities.append((repo_full_name, similarity))
+                            except Exception as e:
+                                logger.error(f"Error calculating similarity for {repo_full_name}: {str(e)}")
+
+                    # 排序并返回结果
+                    similarities.sort(key=lambda x: x[1], reverse=True)
+                    # 确保获取足够数量的推荐结果
+                    for repo_name, similarity in similarities[:count]:
+                        try:
+                            repo_info = get_repo_info(repo_name)
+                            if repo_info:
+                                base_response['recommendations'].append({
+                                    'name': repo_name,
+                                    'metrics': {
+                                        'stars': repo_info.get('stargazers_count', 0),
+                                        'forks': repo_info.get('forks_count', 0),
+                                        'watchers': repo_info.get('watchers_count', 0),
+                                        'size': repo_info.get('size', 0)
+                                    },
+                                    'similarity': max(0.1, similarity)  # 确保最小相似度为0.1
+                                })
+                        except Exception as e:
+                            logger.error(f"Error getting info for repo {repo_name}: {str(e)}")
+
+                    # 如果推荐结果不足，尝试获取更多候选仓库
+                    if len(base_response['recommendations']) < count:
+                        logger.info("Not enough recommendations, fetching more candidates...")
+                        # 获取更多候选仓库
+                        more_repos = _get_trending_repos([])  # 不限制语言
+                        for repo in more_repos:
+                            if len(base_response['recommendations']) >= count:
+                                break
+                            repo_full_name = repo.get('full_name')
+                            if repo_full_name and repo_full_name != name and \
+                               repo_full_name not in [r['name'] for r in base_response['recommendations']]:
+                                try:
+                                    similarity = calculate_repo_repo_similarity(name, repo_full_name)
+                                    repo_info = get_repo_info(repo_full_name)
+                                    if repo_info:
+                                        base_response['recommendations'].append({
+                                            'name': repo_full_name,
+                                            'metrics': {
+                                                'stars': repo_info.get('stargazers_count', 0),
+                                                'forks': repo_info.get('forks_count', 0),
+                                                'watchers': repo_info.get('watchers_count', 0),
+                                                'size': repo_info.get('size', 0)
+                                            },
+                                            'similarity': max(0.1, similarity)
+                                        })
+                                except Exception as e:
+                                    logger.error(f"Error processing additional repo {repo_full_name}: {str(e)}")
+
+                except Exception as e:
+                    error_msg = f'推荐仓库时发生错误: {str(e)}'
+                    logger.error(error_msg)
+                    base_response.update({
+                        'status': 'error',
+                        'message': error_msg
                     })
                     return base_response
 
         # 检查是否有推荐结果
         if not base_response['recommendations'] and base_response['status'] != 'error':
+            error_msg = '未找到任何推荐结果'
+            logger.warning(error_msg)
             base_response.update({
                 'status': 'error',
-                'message': '未找到任何推荐结果'
+                'message': error_msg
             })
 
         return base_response
@@ -607,7 +907,7 @@ def analyze_with_llm(node_a: str, node_b: str) -> str:
         "messages": [
             {
                 "role": "system",
-                "content": "你是一个致力于维护github开源社区的工作人员，你的职责是分析用户和项目之间的相似点，目标是促进协作和技术交流。对于两个github仓库：分析它们的相似之处，目的是找到能够吸引一个仓库的贡献者愿意维护另一个仓库的理由。对于两个用户：分析他们的偏好和技术栈相似点，目的是促成他们成为好友并深入交流技术。对于一个用户和一个仓库：分析用户的偏好或技术栈与仓库特征的相似点，目的是说服用户参与该仓库的贡献。输出要求：不要用mark down的语法，你的回答必须是有序列表格式，每个列表项应包含清晰且详细的理由，在每个理由前标上序号。不需要任何叙述性语句或解释，只需列出分析结果。语气务必坚定，确保每个理由都显得可信且具有说服力。请判断清楚2个主体分别是用户还是仓库。"
+                "content": "你是一个致力于维护github开源社区的工作人员，你的职责是分析用户和项目之间的相似点，目标是促进协作和技术交流。对于两个github仓库：分析它们的相似之处，目的是找到能够吸引一个仓库的贡献者愿意维护另一个仓库的理由。对于两个用户：分析他们的偏好和技术栈相似点，目的是促成他们成为好友并深入交流技术。对于一个用户和一个仓库：分析用户的偏好或技术栈与仓库特征的相似点，目的是说服用户参与该仓库的贡献。输出要求：不要用markdown的语法，你的回答必须是有序列表格式，每个列表项应包含清晰且详细的理由，在每个理由前标上序号。不需要任何叙述性语句或解释，只需列出分析结果。语气务必坚定，确保每个理由都显得可信且具有说服力。请判断清楚2个主体分别是用户还是仓库。不要用markdown语法，请用没有格式的纯文本。"
             },
             {
                 "role": "user",
