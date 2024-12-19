@@ -42,27 +42,19 @@ export async function GET(request: Request) {
   }
 
   try {
-<<<<<<< HEAD
     const baseUrl = 'http://127.0.0.1:8000/api'
-=======
-    const baseUrl = 'http://localhost:8000/api'
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
     const countParam = count ? `&count=${encodeURIComponent(count)}` : ''
     const url = `${baseUrl}/recommend?type=${encodeURIComponent(type)}&name=${encodeURIComponent(name)}&find=${encodeURIComponent(find)}${countParam}`
 
     console.log('Calling backend API:', url);
 
-<<<<<<< HEAD
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 秒超时
 
-=======
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
     const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
       },
-<<<<<<< HEAD
       signal: controller.signal,
       // 显式禁用 IPv6
       agent: function(_parsedURL: URL) {
@@ -71,9 +63,6 @@ export async function GET(request: Request) {
     }).finally(() => {
       clearTimeout(timeoutId);
     });
-=======
-    })
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
     
     if (!response.ok) {
       const errorText = await response.text()
@@ -96,7 +85,6 @@ export async function GET(request: Request) {
     return NextResponse.json(data)
   } catch (error) {
     console.error('API Error:', error)
-<<<<<<< HEAD
     // 更详细的错误信息
     const errorMessage = error instanceof Error 
       ? `服务器错误: ${error.message}`
@@ -104,10 +92,6 @@ export async function GET(request: Request) {
     
     return NextResponse.json(
       { message: errorMessage },
-=======
-    return NextResponse.json(
-      { message: '服务器错误' },
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
       { status: 500 }
     )
   }

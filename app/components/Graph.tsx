@@ -7,20 +7,12 @@ import { message } from 'antd';
 export interface Node extends d3.SimulationNodeDatum {
   id: string;
   group: number;
-<<<<<<< HEAD
   type: 'user' | 'repo';
   nodeType: 'core' | 'extended' | 'center';
   metrics: {
     size: number;
     stars?: number;
     followers?: number;
-=======
-  openrank: number;
-  x?: number;
-  y?: number;
-  metrics: {
-    size: number;
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
   };
 }
 
@@ -151,7 +143,6 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
     svg.call(zoom);
 
-<<<<<<< HEAD
   // 修改计算节点半径的函数
   const getNodeRadius = (d: Node) => {
     const baseSize = d.metrics.size || 20;  // 使用后端计算的活跃度指标
@@ -174,35 +165,6 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         return d.type === 'user' ? '#60A5FA' : '#C084FC';  // 浅蓝色表示推荐用户，浅紫色表示推荐仓库
       }
       return d.type === 'user' ? '#93C5FD' : '#DDD6FE';  // 最浅的蓝/紫表示扩展节点
-=======
-    // 计算节点半径
-    const getNodeRadius = (d: Node) => {
-      if (d.id === data.center.id) return 45;  // 中心节点固定大小为45
-
-      // 计算除中心节点外的最大和最小size
-      const sizes = data.nodes.filter(n => n.id !== data.center.id).map(n => n.metrics.size);
-      const maxSize = Math.max(...sizes);
-      const minSize = Math.min(...sizes);
-      
-      // 如果是用户节点，使用 followers 或 size 作为基准
-      if (d.type === 'user') {
-        const userMetrics = d.metrics as any;
-        const userSize = userMetrics.followers || userMetrics.size || 1;
-        return 20 + ((userSize - minSize) / (maxSize - minSize || 1)) * 20;
-      }
-      
-      // 仓库节点使用 size
-      const repoSize = d.metrics.size || 1;
-      return 20 + ((repoSize - minSize) / (maxSize - minSize || 1)) * 20;
-    };
-
-    // 获取节点颜色
-    const getNodeColor = (d: Node) => {
-      if (d.id === data.center.id) return '#4169E1';  // 中心节点蓝色
-      if (d.id.startsWith('#')) return '#FFD700';     // Issue 节点黄色
-      if (d.group === 1) return '#90EE90';            // 特殊组节点浅绿色
-      return '#FA8072';                               // 普通节点浅红色
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
     };
 
     // 获取文本颜色
@@ -216,7 +178,6 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       .force('link', d3.forceLink<Node, Link>(data.links)
         .id(d => d.id)
         .distance(link => {
-<<<<<<< HEAD
           if ((link.source as Node).nodeType === 'extended' || 
               (link.target as Node).nodeType === 'extended') {
             return 100;  // 扩展节点使用较小的固定距离
@@ -231,16 +192,6 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           if (d.nodeType === 'core') return -400;
           return -100;  // 扩展节点使用较小的斥力
         }))
-=======
-          // value 在 0-1 之间，value 越大表示相似度越高，距离应该越小
-          const minDistance = 80;
-          const maxDistance = 300;
-          // 直接用 1 - value 计算距离，不需要再做归一化
-          return minDistance + (1 - link.value) * (maxDistance - minDistance);
-        }))
-      .force('charge', d3.forceManyBody()
-        .strength(d => d.id === data.center.id ? -1000 : -400))
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
       .force('center', d3.forceCenter(width / 2, height / 2).strength(0.1))
       .force('collision', d3.forceCollide()
         .radius(d => getNodeRadius(d) + 5)
@@ -288,17 +239,12 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
     node.call(dragBehavior);
 
-<<<<<<< HEAD
     // 修改节点绘制部分
-=======
-    // 添加节点圆形
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
     node.append('circle')
       .attr('r', getNodeRadius)
       .attr('fill', getNodeColor)
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
-<<<<<<< HEAD
       .attr('opacity', d => d.nodeType === 'extended' ? 0.6 : 0.9);
 
     // 添加文本标签
@@ -311,23 +257,6 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       .attr('font-size', d => d.nodeType === 'center' ? '14px' : '12px')
       .attr('fill', getTextColor)
       .attr('opacity', d => d.nodeType === 'extended' ? 0 : 0.8);
-=======
-      .attr('opacity', 0.9);
-
-    // 添加文本标签
-    node.append('text')
-      .text(d => d.id.startsWith('#') ? d.id.slice(0, 7) : d.id)
-      .attr('x', d => {
-        if (d.id === data.center.id) return 0;
-        return 30;  // 统一文本位置
-      })
-      .attr('y', d => d.id === data.center.id ? 0 : 4)
-      .attr('dominant-baseline', d => d.id === data.center.id ? 'middle' : 'auto')
-      .attr('text-anchor', d => d.id === data.center.id ? 'middle' : 'start')
-      .attr('font-size', d => d.id === data.center.id ? '14px' : '12px')
-      .attr('fill', getTextColor)
-      .attr('opacity', 0.8);
->>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
 
     // 更新位置
     simulation.on('tick', () => {
