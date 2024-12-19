@@ -364,7 +364,11 @@ def calculate_user_user_similarity(user1: str, user2: str) -> float:
     size2 = sum(repo.get('size', 0) for repo in repos2)
     size_similarity = 1 - abs(size1 - size2) / max(size1 + size2, 1)
     
+<<<<<<< HEAD
     # 综合计��
+=======
+    # 综合计算
+>>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
     return 0.4 * lang_similarity + 0.4 * topic_similarity + 0.2 * size_similarity
 
 def calculate_repo_repo_similarity(repo1: str, repo2: str) -> float:
@@ -426,7 +430,11 @@ def calculate_user_repo_similarity(username: str, repo_name: str) -> float:
     return 0.4 * language_match + 0.4 * topic_match + 0.2 * size_match
 
 def process_candidate(args) -> Tuple[str, float]:
+<<<<<<< HEAD
     """处理单个候选对象（用于并行���理）"""
+=======
+    """处理单个候选对象（用于并行处理）"""
+>>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
     candidate, name, type_str, find = args
     if type_str == "user" and find == "user":
         similarity = calculate_user_user_similarity(name, candidate)
@@ -727,7 +735,11 @@ def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, 
                         except Exception as e:
                             logger.error(f"Error calculating similarity for {candidate}: {str(e)}")
 
+<<<<<<< HEAD
                     # ��序并返回结果
+=======
+                    # 排序并返回结果
+>>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
                     similarities.sort(key=lambda x: x[1], reverse=True)
                     for user, similarity in similarities[:count]:
                         try:
@@ -907,7 +919,11 @@ def analyze_with_llm(node_a: str, node_b: str) -> str:
         "messages": [
             {
                 "role": "system",
+<<<<<<< HEAD
                 "content": "你是一个致力于维护github开源社区的工作人员，你的职责是分析用户和项目之间的相似点，目标是促进协作和技术交流。对于两个github仓库：分析它们的相似之处，目的是找到能够吸引一个仓库的贡献者愿意维护另一个仓库的理由��对于两个用户：分析他们的偏好和技术栈相似点，目的是促成他们成为好友并深入交流技术。对于一个用户和一个仓库：分析用户的偏好或技术栈与仓库特征的相似点，目的是说服用户参与该仓库的贡献。输出要求：不要用markdown的语法，你的回答必须是有序列表格式，每个列表项应包含清晰且详细的理由，在每个理由前标上序号。不需要任何叙述性语句或解释，只需列出分析结果。语气务必坚定，确保每个理由都显得可信且具有说服力。请判断清楚2个主体分别是用户还是仓库。不要用markdown语法，请用没有格式的纯文本。"
+=======
+                "content": "你是一个致力于维护github开源社区的工作人员，你的职责是分析用户和项目之间的相似点，目标是促进协作和技术交流。对于两个github仓库：分析它们的相似之处，目的是找到能够吸引一个仓库的贡献者愿意维护另一个仓库的理由。对于两个用户：分析他们的偏好和技术栈相似点，目的是促成他们成为好友并深入交流技术。对于一个用户和一个仓库：分析用户的偏好或技术栈与仓库特征的相似点，目的是说服用户参与该仓库的贡献。输出要求：不要用markdown的语法，你的回答必须是有序列表格式，每个列表项应包含清晰且详细的理由，在每个理由前标上序号。不需要任何叙述性语句或解释，只需列出分析结果。语气务必坚定，确保每个理由都显得可信且具有说服力。请判断清楚2个主体分别是用户还是仓库。不要用markdown语法，请用没有格式的纯文本。"
+>>>>>>> 0fe51c7f31a84d94902f9f7a94cdd1f5a86f39ce
             },
             {
                 "role": "user",
