@@ -143,18 +143,28 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
     svg.call(zoom);
 
-    // 计算节点半径
-    const getNodeRadius = (d: Node) => {
-      if (d.nodeType === 'center') return 45;
-      if (d.nodeType === 'core') return 20 + Math.min(d.metrics.size, 20);
-      return 10;  // 扩展节点使用较小的固定大小
-    };
+  // 修改计算节点半径的函数
+  const getNodeRadius = (d: Node) => {
+    const baseSize = d.metrics.size || 20;  // 使用后端计算的活跃度指标
+    
+    if (d.nodeType === 'center') return 45;  // 中心节点保持固定大小
+    if (d.nodeType === 'core') {
+      // 核心节点：基于活跃度计算大小，范围在20-40之间
+      return 20 + Math.min(baseSize / 2, 20);
+    }
+    // 扩展节点：基于活跃度计算大小，范围在10-20之间
+    return 10 + Math.min(baseSize / 4, 10);
+  };
 
-    // 获取节点颜色
+    // 修改获取节点颜色的函数
     const getNodeColor = (d: Node) => {
-      if (d.nodeType === 'center') return '#4169E1';
-      if (d.nodeType === 'core') return '#90EE90';
-      return '#FFD700';  // 扩展节点使用金色，像星星
+      if (d.nodeType === 'center') {
+        return d.type === 'user' ? '#1E40AF' : '#9333EA';  // 深蓝色表示用户，深紫色表示仓库
+      }
+      if (d.nodeType === 'core') {
+        return d.type === 'user' ? '#60A5FA' : '#C084FC';  // 浅蓝色表示推荐用户，浅紫色表示推荐仓库
+      }
+      return d.type === 'user' ? '#93C5FD' : '#DDD6FE';  // 最浅的蓝/紫表示扩展节点
     };
 
     // 获取文本颜色
@@ -229,13 +239,13 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
     node.call(dragBehavior);
 
-    // 添加节点圆形
+    // 修改节点绘制部分
     node.append('circle')
       .attr('r', getNodeRadius)
       .attr('fill', getNodeColor)
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
-      .attr('opacity', d => d.nodeType === 'extended' ? 0.6 : 0.9);  // 扩展节点更透明
+      .attr('opacity', d => d.nodeType === 'extended' ? 0.6 : 0.9);
 
     // 添加文本标签
     node.append('text')
