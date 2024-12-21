@@ -38,7 +38,7 @@ app.add_middleware(
 class GraphNode(BaseModel):
     id: str = Field(..., description="节点标识")
     type: str = Field(..., description="节点类型 (user/repo)")
-    nodeType: str = Field(..., description="节���层级类型 (center/core/extended)")
+    nodeType: str = Field(..., description="节点层级类型 (center/mentor/peer/floating)")
     metrics: Dict[str, Any] = Field(..., description="节点指标")
     similarity: float = Field(..., description="相似度")
 
@@ -149,25 +149,57 @@ async def get_recommendations(
         }
         nodes.append(center_node)
 
-        # 添加推荐节点
-        for item in recommendations.get('recommendations', []):
-            # 获取用户规模来判断是导师还是新手
-            user_scale = item['metrics'].get('size', 30)
-            node_type = 'mentor' if user_scale > 30 else 'peer'  # 新增节点类型：导师/同伴
+        # 获取所有推荐结果
+        all_recommendations = recommendations.get('recommendations', [])
+        total_count = len(all_recommendations)
+        logger.info(f"Total recommendations received: {total_count}")
+
+        if total_count > 0:
+            # 批量处理所有节点
+            connected_nodes = []
+            floating_nodes = []
             
-            node = {
-                'id': item['name'],
-                'type': find,
-                'nodeType': node_type,  # 使用新的节点类型
-                'metrics': item['metrics'],
-                'similarity': item['similarity']
-            }
-            nodes.append(node)
-            links.append({
-                'source': name,
-                'target': item['name'],
-                'value': item['similarity']
-            })
+            # 一次性分类所有节点
+            for i, item in enumerate(all_recommendations):
+                node = {
+                    'id': item['name'],
+                    'type': find,
+                    'metrics': item['metrics'],
+                    'similarity': item['similarity']
+                }
+                
+                if i < 10:  # 前10个作为连接节点
+                    user_scale = item['metrics'].get('size', 30)
+                    node['nodeType'] = 'mentor' if user_scale > 30 else 'peer'
+                    connected_nodes.append(node)
+                else:  # 剩余的作为漂浮节点
+                    node['nodeType'] = 'floating'
+                    floating_nodes.append(node)
+
+            # 批量添加连接节点和链接
+            if connected_nodes:
+                nodes.extend(connected_nodes)
+                links.extend([{
+                    'source': name,
+                    'target': node['id'],
+                    'value': node['similarity']
+                } for node in connected_nodes])
+                logger.info(f"Added {len(connected_nodes)} connected nodes")
+
+            # 批量添加漂浮节点
+            if floating_nodes:
+                nodes.extend(floating_nodes)
+                logger.info(f"Added {len(floating_nodes)} floating nodes")
+
+        # 添加节点统计日志
+        connected_count = len([n for n in nodes if n['nodeType'] in ['mentor', 'peer']])
+        floating_count = len([n for n in nodes if n['nodeType'] == 'floating'])
+        
+        logger.info("Final node distribution:")
+        logger.info(f"- Total nodes: {len(nodes)}")
+        logger.info(f"- Connected nodes: {connected_count}")
+        logger.info(f"- Floating nodes: {floating_count}")
+        logger.info(f"- Links created: {len(links)}")
 
         return {
             'success': True,
@@ -180,11 +212,9 @@ async def get_recommendations(
                 }
             }
         }
-    except HTTPException as e:
-        print(f"Validation error: {str(e)}")
-        raise e
+
     except Exception as e:
-        print(f"Recommendation error: {str(e)}")
+        logger.error(f"Recommendation error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=[{
@@ -208,7 +238,7 @@ async def get_recommendations(
 )
 async def analyze_nodes(
     node_a: str = Query(..., description="第一个节点的标识（用户名或仓库全名）", example="microsoft"),
-    node_b: str = Query(..., description="第二个节点的标识���用户名或仓库全名）", example="google/tensorflow")
+    node_b: str = Query(..., description="第二个节点的标识（用户名或仓库全名）", example="google/tensorflow")
 ):
     """
     分析两个节点（用户或仓库）之间的关系

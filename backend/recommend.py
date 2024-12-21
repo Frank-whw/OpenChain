@@ -209,7 +209,7 @@ def _get_language_preferences(repos: List[Dict]) -> List[str]:
 
 @lru_cache(maxsize=CACHE_SIZE)
 def get_user_info(username: str) -> Dict:
-    """获取用户���息（带缓存）"""
+    """获取用户信息（带缓存）"""
     session = get_session()
     max_retries = 3
     
@@ -405,7 +405,7 @@ def get_repo_scale(repo_full_name: str) -> float:
        # 3. 计算代码质量指数 (0-1)
        size = repo_info.get('size', 0)  # 仓库大小（KB）
        open_issues = repo_info.get('open_issues_count', 0)  # 开放的issue数量
-       total_issues = recent_issues or 1  # 避免除零
+       total_issues = recent_issues or 1  # 避免零
        issue_resolution_rate = 1 - (open_issues / total_issues)  # issue解决率
        
        # 获取贡献者数量
@@ -437,12 +437,12 @@ def calculate_user_user_similarity(user1: str, user2: str) -> float:
     repos1 = get_user_repos(user1)
     repos2 = get_user_repos(user2)
     
-    # 1. 语言相似度
+    # 1. 语言相似度 (30%)
     langs1 = set(repo['language'] for repo in repos1 if repo['language'])
     langs2 = set(repo['language'] for repo in repos2 if repo['language'])
     lang_similarity = len(langs1.intersection(langs2)) / len(langs1.union(langs2)) if langs1 and langs2 else 0
     
-    # 2. 主题相似度
+    # 2. 主题相似度 (40%)
     topics1 = set()
     topics2 = set()
     for repo in repos1:
@@ -451,41 +451,34 @@ def calculate_user_user_similarity(user1: str, user2: str) -> float:
         topics2.update(repo.get('topics', []))
     topic_similarity = len(topics1.intersection(topics2)) / len(topics1.union(topics2)) if topics1 and topics2 else 0
     
-    # 3. 规模相似度
+    # 3. 规模相似度 (30%)
     size1 = sum(repo.get('size', 0) for repo in repos1)
     size2 = sum(repo.get('size', 0) for repo in repos2)
     size_similarity = 1 - abs(size1 - size2) / max(size1 + size2, 1)
     
-    # 综合计算
-    return 0.4 * lang_similarity + 0.4 * topic_similarity + 0.2 * size_similarity
+    # 综合计算 (30% + 40% + 30%)
+    return 0.3 * lang_similarity + 0.4 * topic_similarity + 0.3 * size_similarity
 
 def calculate_repo_repo_similarity(repo1: str, repo2: str) -> float:
     """计算仓库-仓库相似度（多维度）"""
     info1 = get_repo_info(repo1)
     info2 = get_repo_info(repo2)
     
-    # 1. 语言相似度
+    # 1. 语言相似度 (30%)
     language_similarity = 1 if info1.get('language') == info2.get('language') else 0
     
-    # 2. 主题相似度
+    # 2. 主题相似度 (40%)
     topics1 = set(info1.get('topics', []))
     topics2 = set(info2.get('topics', []))
     topic_similarity = len(topics1.intersection(topics2)) / len(topics1.union(topics2)) if topics1 or topics2 else 0
     
-    # 3. 规模相似度
+    # 3. 规模相似度 (30%)
     size1 = info1.get('size', 0)
     size2 = info2.get('size', 0)
     size_similarity = 1 - abs(size1 - size2) / max(size1 + size2, 1)
     
-    # 4. 功能相似度（基于描述）
-    desc1 = info1.get('description', '').lower().split()
-    desc2 = info2.get('description', '').lower().split()
-    desc_words1 = set(desc1)
-    desc_words2 = set(desc2)
-    desc_similarity = len(desc_words1.intersection(desc_words2)) / len(desc_words1.union(desc_words2)) if desc_words1 and desc_words2 else 0
-    
-    # 综合计算
-    return 0.3 * language_similarity + 0.4 * topic_similarity + 0.2 * size_similarity + 0.1 * desc_similarity
+    # 综合计算 (30% + 40% + 30%)
+    return 0.3 * language_similarity + 0.4 * topic_similarity + 0.3 * size_similarity
 
 def calculate_user_repo_similarity(username: str, repo_name: str) -> float:
     """计算用户-仓库相似度（多维度）"""
@@ -493,7 +486,7 @@ def calculate_user_repo_similarity(username: str, repo_name: str) -> float:
     user_repos = get_user_repos(username)
     repo_info = get_repo_info(repo_name)
     
-    # 1. 语言配度
+    # 1. 语言匹配度 (30%)
     user_languages = defaultdict(int)
     for repo in user_repos:
         if repo['language']:
@@ -502,20 +495,20 @@ def calculate_user_repo_similarity(username: str, repo_name: str) -> float:
     repo_language = repo_info.get('language', '')
     language_match = user_languages.get(repo_language, 0) / total_repos if total_repos > 0 else 0
     
-    # 2. 主题匹配度
+    # 2. 主题匹配度 (40%)
     user_topics = set()
     for repo in user_repos:
         user_topics.update(repo.get('topics', []))
     repo_topics = set(repo_info.get('topics', []))
     topic_match = len(repo_topics.intersection(user_topics)) / len(repo_topics.union(user_topics)) if repo_topics or user_topics else 0
     
-    # 3. 规模匹配度
+    # 3. 规模匹配度 (30%)
     user_avg_size = sum(repo.get('size', 0) for repo in user_repos) / len(user_repos) if user_repos else 0
     repo_size = repo_info.get('size', 0)
     size_match = 1 - abs(user_avg_size - repo_size) / max(user_avg_size + repo_size, 1)
     
-    # 综合计算
-    return 0.4 * language_match + 0.4 * topic_match + 0.2 * size_match
+    # 综合计算 (30% + 40% + 30%)
+    return 0.3 * language_match + 0.4 * topic_match + 0.3 * size_match
 
 def get_candidates_batch(repos: List[Dict], session: requests.Session, max_per_repo: int = 10) -> Set[str]:
     """批量获取仓库贡献者"""
@@ -535,11 +528,16 @@ def get_candidates_batch(repos: List[Dict], session: requests.Session, max_per_r
 
 def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, Any]:
     """推荐函数"""
-    count = N if count is None else min(count, N)
-    
     try:
         session = get_session()
-        logger.info(f"Processing recommendation request: {type_str}/{name} -> {find}, count={count}")
+        count = N if count is None else min(count, N)
+        total_count = count * 3  # 获取3倍的推荐结果，多出的部分用作游离节点
+        
+        # 计算推荐池大小 (25-50)
+        user_scale = get_user_scale(name)
+        pool_size = int(25 + (user_scale - 20) * 1.25)
+        
+        logger.info(f"Processing recommendation request: {type_str}/{name} -> {find}, count={count}, total_count={total_count}, pool_size={pool_size}")
 
         base_response = {
             'metrics': {
@@ -563,194 +561,192 @@ def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, 
 
             # 获取用户的仓库和贡献信息
             user_repos = get_user_repos(name)
-            user_scale = get_user_scale(name)
             
-            # 更新判断用户类型的逻辑
+            # 判断用户类型和活跃度
             if not user_repos or user_info.get('public_repos', 0) == 0:
-                # 没有仓库的用户直接归类为新手
                 user_type = "newcomer"
-            elif user_scale > 33:  # 活跃度较高
+                is_active = False
+            elif user_scale > 33:
                 user_type = "high_active"
-            elif user_scale > 25:  # 活跃度较低
+                is_active = True
+            elif user_scale > 25:
                 user_type = "low_active"
-            else:  # 其他新手用户
+                is_active = False
+            else:
                 user_type = "newcomer"
-
-            # 更新用户指标
-            base_response['metrics'].update({
-                'followers': user_info.get('followers', 0),
-                'following': user_info.get('following', 0),
-                'public_repos': user_info.get('public_repos', 0),
-                'size': user_scale
-            })
+                is_active = False
 
             try:
-                # 获取已关注用户集合
-                following_url = f"{GITHUB_API}/users/{name}/following"
-                following_response = session.get(following_url, headers=headers)
-                following_set = {user['login'] for user in (following_response.json() if following_response.status_code == 200 else [])}
-
-                # 设置推荐池大小
-                pool_size = int(25 + (user_scale - 20) * 1.25)  # 25-50
-                is_active = user_scale > 30
+                # 并行获取用户信息和关注列表
+                with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+                    future_user_info = executor.submit(get_user_info, name)
+                    future_following = executor.submit(
+                        lambda: session.get(f"{GITHUB_API}/users/{name}/following", headers=headers).json() 
+                        if session.get(f"{GITHUB_API}/users/{name}/following", headers=headers).status_code == 200 else []
+                    )
+                    
+                    user_info = future_user_info.result()
+                    following_set = {user['login'] for user in future_following.result()}
 
                 if user_type == "newcomer":
-                    # 获取用户技术栈
-                    user_repos = get_user_repos(name)
-                    user_languages = defaultdict(int)
-                    for repo in user_repos:
-                        if repo.get('language'):
-                            user_languages[repo.get('language')] += 1
-
-                    # 并行获取候选用户
-                    candidates = get_newcomer_candidates(name, user_languages, session)
-                    
-                    # 过滤候选用户
-                    candidates = candidates - following_set - {name}
-                    candidates = list(candidates)[:pool_size]
-
-                    # 批量获取用户信息和计算相似度
-                    user_infos = batch_get_user_info(candidates, session)
-                    
-                    # 并行计算相似度
-                    mentor_candidates = []
-                    peer_candidates = []
-                    
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                        future_to_candidate = {
-                            executor.submit(calculate_user_user_similarity, name, candidate): candidate
-                            for candidate in candidates if candidate in user_infos
-                        }
+                    # 并行获取用户语言统计和候选用户
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+                        # 并行处理所有仓库的语言统计
+                        user_languages = defaultdict(int)
+                        futures_languages = [
+                            executor.submit(lambda r: r.get('language'), repo)
+                            for repo in user_repos if repo
+                        ]
+                        for future in concurrent.futures.as_completed(futures_languages):
+                            lang = future.result()
+                            if lang:
+                                user_languages[lang] += 1
+                        
+                        # 并行获取候选用户
+                        candidates = get_newcomer_candidates(name, user_languages, session)
+                        candidates = list(candidates - following_set - {name})[:pool_size]
+                        
+                        # 并行获取所有候选用户的信息和计算相似度
+                        future_to_candidate = {}
+                        for candidate in candidates:
+                            def process_candidate(candidate=candidate):
+                                return (
+                                    candidate,
+                                    calculate_user_user_similarity(name, candidate),
+                                    get_user_info(candidate),
+                                    get_user_scale(candidate)
+                                )
+                            future_to_candidate[executor.submit(process_candidate)] = candidate
+                        
+                        all_recommendations = []
                         for future in concurrent.futures.as_completed(future_to_candidate):
-                            candidate = future_to_candidate[future]
                             try:
-                                similarity = future.result()
-                                if similarity > 0:
-                                    user_info = user_infos[candidate]
-                                    candidate_scale = get_user_scale(candidate)
-                                    if candidate_scale > 30:  # 导师
-                                        mentor_candidates.append((candidate, similarity, user_info))
-                                    else:  # 同伴
-                                        peer_candidates.append((candidate, similarity, user_info))
-                            except Exception:
+                                candidate, similarity, user_info, candidate_scale = future.result()
+                                if user_info:
+                                    # 基于相似度确定节点类型
+                                    if similarity >= 0.7:
+                                        node_type = 'mentor'    # 高相似度用户
+                                    elif similarity >= 0.4:
+                                        node_type = 'peer'      # 中等相似度用户
+                                    else:
+                                        node_type = 'floating'  # 低相似度用户
+
+                                    all_recommendations.append({
+                                        'name': candidate,
+                                        'metrics': {
+                                            'followers': user_info.get('followers', 0),
+                                            'following': user_info.get('following', 0),
+                                            'public_repos': user_info.get('public_repos', 0),
+                                            'size': candidate_scale
+                                        },
+                                        'similarity': similarity,
+                                        'nodeType': node_type  # 添加节点类型
+                                    })
+                            except Exception as e:
+                                logger.error(f"Error processing candidate: {str(e)}")
                                 continue
-
-                    # 按7:3比例选择导师和同伴
-                    mentor_count = int(count * 0.7)
-                    peer_count = count - mentor_count
-
-                    # 合并推荐结果
-                    final_recommendations = (
-                        sorted(mentor_candidates, key=lambda x: x[1], reverse=True)[:mentor_count] +
-                        sorted(peer_candidates, key=lambda x: x[1], reverse=True)[:peer_count]
-                    )
-
-                    # 添加推荐结果（已经有用户信息，无需再次获取）
-                    for user, similarity, user_info in final_recommendations:
-                        base_response['recommendations'].append({
-                            'name': user,
-                            'metrics': {
-                                'followers': user_info.get('followers', 0),
-                                'following': user_info.get('following', 0),
-                                'public_repos': user_info.get('public_repos', 0),
-                                'size': get_user_scale(user)
-                            },
-                            'similarity': similarity
-                        })
+                        
+                        # 按相似度排序
+                        all_recommendations.sort(key=lambda x: x['similarity'], reverse=True)
+                        base_response['recommendations'] = all_recommendations
 
                 else:
-                    # 保持活跃用户和非活跃用户的原有逻辑
-                    # 使用线程池并行获取候选用户
-                    candidates = set()
-                    futures = []
-                    
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                    # 活跃用户和非活跃用户的处理
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+                        candidates = set()
                         if is_active:
-                            # 1. 获取star的仓库
-                            starred_url = f"{GITHUB_API}/users/{name}/starred?per_page=5"
-                            futures.append(executor.submit(
-                                lambda: session.get(starred_url).json() if session.get(starred_url).status_code == 200 else []
-                            ))
-                            
-                            # 2. 获取参与的仓库
-                            futures.append(executor.submit(
+                            # 并行获取 starred 仓库和用户仓库的贡献者
+                            future_starred = executor.submit(
+                                lambda: session.get(
+                                    f"{GITHUB_API}/users/{name}/starred?per_page=5",
+                                    headers=headers
+                                ).json() if session.get(
+                                    f"{GITHUB_API}/users/{name}/starred?per_page=5",
+                                    headers=headers
+                                ).status_code == 200 else []
+                            )
+                            future_repos = executor.submit(
                                 lambda: [r for r in get_user_repos(name)[:5] if not r.get('fork')]
-                            ))
+                            )
                             
-                            # 等待所有请求完成
-                            done, _ = concurrent.futures.wait(futures)
+                            starred_repos = future_starred.result()
+                            user_repos = future_repos.result()
                             
-                            # 处理结果
-                            for future in done:
+                            # 并行获取所有仓库的贡献者
+                            futures_contributors = [
+                                executor.submit(get_repo_contributors, repo['full_name'])
+                                for repo in (starred_repos + user_repos)
+                            ]
+                            
+                            for future in concurrent.futures.as_completed(futures_contributors):
                                 try:
-                                    repos = future.result()
-                                    candidates.update(get_candidates_batch(repos, session))
+                                    contributors = future.result()
+                                    candidates.update(c['login'] for c in contributors)
                                 except Exception:
                                     continue
                         else:
-                            # 非活跃用户策略
-                            # 1. 获取关注者
-                            followers = _get_user_followers(name)[:5]
+                            # 并行获取关注者的关注者
+                            future_followers = executor.submit(_get_user_followers, name)
+                            followers = future_followers.result()[:5]
                             
-                            # 2. 并行获取关注者的关注者
-                            futures = [
+                            futures_follower_followers = [
                                 executor.submit(_get_user_followers, follower['login'])
                                 for follower in followers
                             ]
                             
-                            for future in concurrent.futures.as_completed(futures):
+                            for future in concurrent.futures.as_completed(futures_follower_followers):
                                 try:
                                     follower_followers = future.result()[:10]
                                     candidates.update(f['login'] for f in follower_followers)
                                 except Exception:
                                     continue
-
-                    # 过滤候选用户
-                    candidates = candidates - following_set - {name}
-                    candidates = list(candidates)[:pool_size]
-
-                    # 并行计算相似度
-                    similarities = []
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                        future_to_candidate = {
-                            executor.submit(calculate_user_user_similarity, name, candidate): candidate
-                            for candidate in candidates
-                        }
+                        
+                        # 过滤并限制候选池大小
+                        candidates = list(candidates - following_set - {name})[:pool_size]
+                        
+                        # 并行处理所有候选用户
+                        future_to_candidate = {}
+                        for candidate in candidates:
+                            def process_candidate(candidate=candidate):
+                                return (
+                                    candidate,
+                                    calculate_user_user_similarity(name, candidate),
+                                    get_user_info(candidate),
+                                    get_user_scale(candidate)
+                                )
+                            future_to_candidate[executor.submit(process_candidate)] = candidate
+                        
+                        all_recommendations = []
                         for future in concurrent.futures.as_completed(future_to_candidate):
-                            candidate = future_to_candidate[future]
                             try:
-                                similarity = future.result()
-                                if similarity > 0:
-                                    similarities.append((candidate, similarity))
-                            except Exception:
-                                continue
-
-                    # 排序并添加推荐
-                    similarities.sort(key=lambda x: x[1], reverse=True)
-                    
-                    # 并行获���推荐用户信息
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                        future_to_user = {
-                            executor.submit(get_user_info, user): (user, sim)
-                            for user, sim in similarities[:count]
-                        }
-                        for future in concurrent.futures.as_completed(future_to_user):
-                            user, similarity = future_to_user[future]
-                            try:
-                                user_info = future.result()
+                                candidate, similarity, user_info, candidate_scale = future.result()
                                 if user_info:
-                                    base_response['recommendations'].append({
-                                        'name': user,
+                                    # 基于相似度确定节点类型
+                                    if similarity >= 0.7:
+                                        node_type = 'mentor'    # 高相似度用户
+                                    elif similarity >= 0.4:
+                                        node_type = 'peer'      # 中等相似度用户
+                                    else:
+                                        node_type = 'floating'  # 低相似度用户
+
+                                    all_recommendations.append({
+                                        'name': candidate,
                                         'metrics': {
                                             'followers': user_info.get('followers', 0),
                                             'following': user_info.get('following', 0),
                                             'public_repos': user_info.get('public_repos', 0),
-                                            'size': get_user_scale(user)
+                                            'size': candidate_scale
                                         },
-                                        'similarity': similarity
+                                        'similarity': similarity,
+                                        'nodeType': node_type  # 添加节点类型
                                     })
-                            except Exception:
+                            except Exception as e:
+                                logger.error(f"Error processing candidate: {str(e)}")
                                 continue
+                        
+                        # 按相似度排序
+                        all_recommendations.sort(key=lambda x: x['similarity'], reverse=True)
+                        base_response['recommendations'] = all_recommendations
 
             except Exception as e:
                 logger.error(f"Error in user recommendation: {str(e)}")
@@ -1030,7 +1026,7 @@ def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, 
         return base_response
 
 def process_recommendation(item_similarity: Tuple[str, float], find: str) -> Dict:
-    """处理单个推荐结果（用于并行处理）"""
+    """处理单个推荐结果（用于并行理）"""
     item, similarity = item_similarity
     if find == "user":
         scale = get_user_scale(item)
@@ -1043,7 +1039,7 @@ def process_recommendation(item_similarity: Tuple[str, float], find: str) -> Dic
     }
 
 def main(type_str: str, name: str, find: str):
-    """主函数（使用并行处理）"""
+    """主函数使用并行处理）"""
     try:
         # 获取推荐结果
         recommendations = recommend(type_str, name, find)
@@ -1062,7 +1058,7 @@ def main(type_str: str, name: str, find: str):
         print(f"Error: {str(e)}")
 
 def analyze_with_llm(node_a: str, node_b: str) -> str:
-    """用大模型分析两个节点��间的关系"""
+    """用大模型分析两个节点间的关系"""
     url = "https://spark-api-open.xf-yun.com/v1/chat/completions"
     data = {
         "max_tokens": 4096,
@@ -1071,7 +1067,7 @@ def analyze_with_llm(node_a: str, node_b: str) -> str:
         "messages": [
             {
                 "role": "system",
-                "content": "你是一个致力于维护github开源社区的工作员，你的职责是分析用户和项目之间的相似点，目标是促进协作和技术交流。对于两个github仓库：分析它们的相似之处，目的是找到能够吸引一个仓库的贡献者愿意维护另一个仓库的理由对于两个用户：分析他们的偏好和技术栈相似点，目的是促成他们成为好友并深入交流技术。对于一个用户和一个仓库：分析用户的偏好或技术栈与仓库特征的相似点，目的是说服用户参与该仓库的贡献。输出要求：不要用markdown的语法，你的回答必须是有序列表格式，每个列表项应包含清晰且详细的理由，在每个理由前标上序号。不需要任何叙性语句或解释，只需列出分析结果。语气务必坚定，确保每个理由都显得可信且具有说服力。请判断清楚2个主体分别是用户还是仓库。不要用markdown语法，请用没有格式的纯文本。"
+                "content": "你是一个致力于维护github开源社区的工作员，你的职责是分析用户和项目之间的相似点，目标是促进协作和技术交流。对于两个github仓库：分析它们的相似之处，目的是找到能够吸引一个仓库的贡献者愿意维护另一个仓库的理由对于两个用户：分析他们的偏好和��术栈相似点，目的是促成他们成为好友并深入交流技术。对于一个用户和一个仓库：分析用户的偏好或技术栈与仓库特征的相似点，目的是说服用户参与该仓库的贡献。输出要求：不要用markdown的语法，你的回答必须是有序列表格式，每个列表项应包含清晰且详细的理由，在每个理由前标上序号。不需要任何叙性语句或解释，只需列出分析结果。语气务必坚定，确保每个理由都显得可信且具有说服力。请判断清楚2个主体分别是用户还是仓库。不要用markdown语法，请用没有格式的纯文本。"
             },
             {
                 "role": "user",
