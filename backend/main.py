@@ -38,6 +38,7 @@ app.add_middleware(
 class GraphNode(BaseModel):
     id: str = Field(..., description="节点标识")
     type: str = Field(..., description="节点类型 (user/repo)")
+    nodeType: str = Field(..., description="节���层级类型 (center/core/extended)")
     metrics: Dict[str, Any] = Field(..., description="节点指标")
     similarity: float = Field(..., description="相似度")
 
@@ -130,32 +131,38 @@ async def get_recommendations(
                 }]
             )
 
-        # 获取推荐结果
         recommendations = recommend(type, name, find, count)
         
         if not recommendations:
             raise HTTPException(status_code=404, detail="未找到推荐结果")
 
-        # 构造返回数据
         nodes = []
         links = []
         
         # 添加中心节点
-        nodes.append({
+        center_node = {
             'id': name,
             'type': type,
+            'nodeType': 'center',
             'metrics': recommendations.get('metrics', {'size': 1}),
             'similarity': 1.0
-        })
+        }
+        nodes.append(center_node)
 
-        # 添加推荐节点和连接
+        # 添加推荐节点
         for item in recommendations.get('recommendations', []):
-            nodes.append({
+            # 获取用户规模来判断是导师还是新手
+            user_scale = item['metrics'].get('size', 30)
+            node_type = 'mentor' if user_scale > 30 else 'peer'  # 新增节点类型：导师/同伴
+            
+            node = {
                 'id': item['name'],
                 'type': find,
+                'nodeType': node_type,  # 使用新的节点类型
                 'metrics': item['metrics'],
                 'similarity': item['similarity']
-            })
+            }
+            nodes.append(node)
             links.append({
                 'source': name,
                 'target': item['name'],
@@ -201,7 +208,7 @@ async def get_recommendations(
 )
 async def analyze_nodes(
     node_a: str = Query(..., description="第一个节点的标识（用户名或仓库全名）", example="microsoft"),
-    node_b: str = Query(..., description="第二个节点的标识（用户名或仓库全名）", example="google/tensorflow")
+    node_b: str = Query(..., description="第二个节点的标识���用户名或仓库全名）", example="google/tensorflow")
 ):
     """
     分析两个节点（用户或仓库）之间的关系

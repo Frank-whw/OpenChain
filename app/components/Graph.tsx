@@ -8,7 +8,7 @@ export interface Node extends d3.SimulationNodeDatum {
   id: string;
   group: number;
   type: 'user' | 'repo';
-  nodeType: 'core' | 'extended' | 'center';
+  nodeType: 'center' | 'mentor' | 'peer';
   metrics: {
     size: number;
     stars?: number;
@@ -145,15 +145,19 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
   // 修改计算节点半径的函数
   const getNodeRadius = (d: Node) => {
-    const baseSize = d.metrics.size || 20;  // 使用后端计算的活跃度指标
+    const baseSize = d.metrics.size || 20;
     
-    if (d.nodeType === 'center') return 45;  // 中心节点保持固定大小
-    if (d.nodeType === 'core') {
-      // 核心节点：基于活跃度计算大小，范围在20-40之间
-      return 20 + Math.min(baseSize / 2, 20);
+    if (d.nodeType === 'center') {
+      return 50;  // 中心节点增大到50px
     }
-    // 扩展节点：基于活跃度计算大小，范围在10-20之间
-    return 10 + Math.min(baseSize / 4, 10);
+    
+    if (d.nodeType === 'mentor') {
+      // 导师节点：范围在30-40之间
+      return 30 + (Math.min(baseSize, 30) / 30) * 10;
+    }
+    
+    // 新手节点：范围在20-25之间
+    return 20 + (Math.min(baseSize, 30) / 30) * 5;
   };
 
     // 修改获取节点颜色的函数
@@ -161,10 +165,13 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       if (d.nodeType === 'center') {
         return d.type === 'user' ? '#1E40AF' : '#9333EA';  // 深蓝色表示用户，深紫色表示仓库
       }
-      if (d.nodeType === 'core') {
-        return d.type === 'user' ? '#60A5FA' : '#C084FC';  // 浅蓝色表示推荐用户，浅紫色表示推荐仓库
+      if (d.nodeType === 'mentor') {
+        return d.type === 'user' ? '#60A5FA' : '#C084FC';  // 浅蓝色表示导师用户
       }
-      return d.type === 'user' ? '#93C5FD' : '#DDD6FE';  // 最浅的蓝/紫表示扩展节点
+      if (d.nodeType === 'peer') {
+        return d.type === 'user' ? '#93C5FD' : '#DDD6FE';  // 最浅的蓝色表示新手用户
+      }
+      return '#93C5FD';  // 默认颜色
     };
 
     // 获取文本颜色
@@ -178,29 +185,37 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       .force('link', d3.forceLink<Node, Link>(data.links)
         .id(d => d.id)
         .distance(link => {
-          if ((link.source as Node).nodeType === 'extended' || 
-              (link.target as Node).nodeType === 'extended') {
-            return 100;  // 扩展节点使用较小的固定距离
+          const source = link.source as Node;
+          const target = link.target as Node;
+          
+          if (source.nodeType === 'peer' || target.nodeType === 'peer') {
+            return 180;  // 新手节点距离更远
           }
-          const minDistance = 80;
+          
+          // 其他节点保持原有距离
+          const minDistance = 100;  // 增加最小距离
           const maxDistance = 300;
           return minDistance + (1 - link.value) * (maxDistance - minDistance);
         }))
       .force('charge', d3.forceManyBody()
         .strength(d => {
-          if (d.nodeType === 'center') return -1000;
-          if (d.nodeType === 'core') return -400;
-          return -100;  // 扩展节点使用较小的斥力
+          if (d.nodeType === 'center') return -1200;  // 增加中心节点斥力
+          if (d.nodeType === 'mentor') return -600;   // 增加导师节点斥力
+          return -300;  // 新手节点斥力
         }))
       .force('center', d3.forceCenter(width / 2, height / 2).strength(0.1))
       .force('collision', d3.forceCollide()
-        .radius(d => getNodeRadius(d) + 5)
+        .radius(d => getNodeRadius(d) + 8)  // 增加节点间隔
         .strength(0.5))
       .force('radial', d3.forceRadial(
-        d => d.id === data.center.id ? 0 : 150,
+        d => {
+          if (d.id === data.center.id) return 0;
+          if (d.nodeType === 'peer') return 200;  // 新手节点在外圈
+          return 150;  // 导师节点在内圈
+        },
         width / 2,
         height / 2
-      ).strength(0.3));
+      ).strength(0.8));
 
     // 绘制连接线
     const link = g.append('g')
