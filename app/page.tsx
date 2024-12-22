@@ -19,6 +19,15 @@ export default function Home() {
   const [type, setType] = useState<EntityType>('user')
   const [findType, setFindType] = useState<EntityType>('repo')
 
+  const handleTypeChange = (value: EntityType) => {
+    setType(value)
+    if (value === 'user') {
+      setFindType('repo')
+    } else {
+      setFindType('user')
+    }
+  }
+
   const handleSearch = async () => {
     setLoading(true)
     setError('')
@@ -57,9 +66,9 @@ export default function Home() {
             <span className="font-bold text-gray-700">GitHub</span>
             
             <div className="flex gap-3">
-              <Select value={type} onValueChange={value => setType(value as EntityType)}>
+              <Select value={type} onValueChange={handleTypeChange}>
                 <SelectTrigger className="w-[100px]">
-                  <SelectValue placeholder="用户" />
+                  <SelectValue placeholder="选择类型" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="user">用户</SelectItem>
@@ -69,11 +78,11 @@ export default function Home() {
 
               <Select value={findType} onValueChange={value => setFindType(value as EntityType)}>
                 <SelectTrigger className="w-[100px]">
-                  <SelectValue placeholder="推荐仓库" />
+                  <SelectValue placeholder="推荐类型" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="repo">推荐仓库</SelectItem>
                   <SelectItem value="user">推荐用户</SelectItem>
+                  <SelectItem value="repo">推荐仓库</SelectItem>
                 </SelectContent>
               </Select>
             </div>

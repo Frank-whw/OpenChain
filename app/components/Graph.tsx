@@ -24,20 +24,14 @@ interface Link extends d3.SimulationLinkDatum<Node> {
 }
 
 interface GraphData {
-  nodes: Node[];
-  links: Link[];
-  center: Node;
-  status?: string;
+  success: boolean;
+  error_type?: string;
   message?: string;
-  recommendations?: Array<{
-    name: string;
-    metrics: {
-      stars?: number;
-      forks?: number;
-      size?: number;
-    };
-    similarity: number;
-  }>;
+  data?: {
+    nodes: Node[];
+    links: Link[];
+    center: Node;
+  };
 }
 
 interface GraphProps {
@@ -54,6 +48,26 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
   const [error, setError] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // 获取错误提示信息
+  const getErrorMessage = (error_type: string, message: string) => {
+    const errorMessages: { [key: string]: string } = {
+      'RATE_LIMIT_ERROR': '🚫 GitHub API 访问受限',
+      'USER_NOT_FOUND': '👤 用户不存在或无法访问',
+      'REPO_NOT_FOUND': '📦 仓库不存在或无法访问',
+      'NO_USER_REPOS': '📭 该用户没有公开仓库',
+      'NO_LANGUAGE_PREFERENCE': '🔍 无法确定用户的编程语言偏好',
+      'USER_RECOMMENDATION_ERROR': '🤝 获取用户推荐失败',
+      'REPO_RECOMMENDATION_ERROR': '📚 获取仓库推荐失败',
+      'NO_CONTRIBUTORS': '👥 该仓库暂无贡献者',
+      'NO_RECOMMENDATIONS': '🔍 未找到相关推荐',
+      'INTERNAL_ERROR': '⚠️ 服务器内部错误'
+    };
+    return {
+      title: errorMessages[error_type] || '未知错误',
+      description: message
+    };
+  };
 
   // 请求 AI 分析
   const requestAnalysis = async (nodeA: string, nodeB: string) => {
@@ -75,39 +89,68 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const data = await response.json();
-      console.log('Analysis response:', data);
+      const result = await response.json();
+      console.log('Analysis response:', result);
       
-      if (data.status === 'success' && data.analysis) {
-        setAiAnalysis(data.analysis);
+      if (result.success && result.data) {
+        setAiAnalysis(result.data.analysis);
       } else {
-        throw new Error(data.message || '分析失败，请稍后重试');
+        // 获取错误信息
+        const errorInfo = getErrorMessage(result.error_type || 'INTERNAL_ERROR', result.message || '分析失败，请稍后重试');
+        message.error({
+          content: (
+            <div>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{errorInfo.title}</div>
+              <div>{errorInfo.description}</div>
+            </div>
+          ),
+          duration: 5
+        });
+        setAiAnalysis('AI 分析失败：' + (result.message || '未知错误'));
       }
     } catch (error) {
       console.error('Failed to get AI analysis:', error);
-      setAiAnalysis(error instanceof Error ? error.message : '获取 AI 分析失败，请稍后重试');
+      message.error({
+        content: (
+          <div>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>⚠️ AI 分析请求失败</div>
+            <div>{error instanceof Error ? error.message : '网络错误，请稍后重试'}</div>
+          </div>
+        ),
+        duration: 5
+      });
+      setAiAnalysis('AI 分析请求失败：' + (error instanceof Error ? error.message : '网络错误，请稍后重试'));
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!data || !svgRef.current || !containerRef.current) return;
+    if (!svgRef.current || !containerRef.current) return;
 
-    // 检查是否有错误信息
-    if (data.status === 'error') {
-      message.error(data.message || '获取推荐数据失败');
-      setError(data.message || '获取推荐数据失败');
+    // 检查是否有错误
+    if (!data.success) {
+      const errorInfo = getErrorMessage(data.error_type || 'INTERNAL_ERROR', data.message || '未知错误');
+      message.error({
+        content: (
+          <div>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{errorInfo.title}</div>
+            <div>{errorInfo.description}</div>
+          </div>
+        ),
+        duration: 5
+      });
+      setError(data.message || '获取数据失败');
+      return;
+    }
+
+    // 如果请求成功但没有数据
+    if (!data.data || !data.data.nodes || data.data.nodes.length === 0) {
+      message.warning('没有找到推荐结果');
       return;
     }
 
     setError(null);
-
-    // 检查节点数据而不是 recommendations
-    if (!data.nodes || data.nodes.length === 0) {
-      message.warning('没有找到推荐结果');
-      return;
-    }
 
     // 获取容器的宽高和红框位置
     const container = containerRef.current;
@@ -178,7 +221,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       if (d.nodeType === 'peer') {
         return d.type === 'user' ? '#60A5FA' : '#C084FC';  // 加深蓝/紫色
       }
-      // 游离节点使用渐变色，根据相似度变化
+      // 游离节点使用渐变��，根据相似度变化
       if (d.type === 'user') {
         const similarity = d.similarity || 0;
         // 蓝色渐变：从浅到深
@@ -196,13 +239,13 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
     // 获取文本颜色
     const getTextColor = (d: Node) => {
-      if (d.id === data.center.id) return '#fff';  // 中心节点文本为白色
+      if (d.id === data.data.center.id) return '#fff';  // 中心节点文本为白色
       return '#333';  // 其他节点文本为深灰色
     };
 
     // 力导向图配置
-    const simulation = d3.forceSimulation<Node>(data.nodes)
-      .force('link', d3.forceLink<Node, Link>(data.links)
+    const simulation = d3.forceSimulation<Node>(data.data.nodes)
+      .force('link', d3.forceLink<Node, Link>(data.data.links)
         .id(d => d.id)
         .distance(link => {
           const similarity = link.value || 0;
@@ -216,12 +259,12 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           const similarity = d.similarity || 0;
           if (d.nodeType === 'center') return -2000;  // 减小中心节点斥力
           
-          const rank = data.nodes
+          const rank = data.data.nodes
             .filter(n => n.nodeType === d.nodeType)
             .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
             .findIndex(n => n.id === d.id);
           
-          const rankFactor = Math.pow(1 - rank / Math.max(1, data.nodes.filter(n => n.nodeType === d.nodeType).length - 1), 0.5);
+          const rankFactor = Math.pow(1 - rank / Math.max(1, data.data.nodes.filter(n => n.nodeType === d.nodeType).length - 1), 0.5);
           
           const baseStrength = {
             'mentor': -800,   // 减小斥力
@@ -237,16 +280,16 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         .strength(0.5))
       .force('radial', d3.forceRadial(
         (d: Node) => {
-          if (d.id === data.center.id) return 0;
+          if (d.id === data.data.center.id) return 0;
           const similarity = d.similarity || 0;
           
           const getDistanceBySimilarity = (sim: number, minDist: number, maxDist: number) => {
-            const rank = data.nodes
+            const rank = data.data.nodes
               .filter(n => n.nodeType === d.nodeType)
               .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
               .findIndex(n => n.id === d.id);
             
-            const rankRatio = rank / Math.max(1, data.nodes.filter(n => n.nodeType === d.nodeType).length - 1);
+            const rankRatio = rank / Math.max(1, data.data.nodes.filter(n => n.nodeType === d.nodeType).length - 1);
             const similarityFactor = Math.pow(1 - sim, 2);
             const rankFactor = Math.pow(rankRatio, 0.5);
             
@@ -287,7 +330,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
     // 绘制连接线
     const link = g.append('g')
       .selectAll('line')
-      .data(data.links)
+      .data(data.data.links)
       .join('line')
       .attr('stroke', '#E5E5E5')
       .attr('stroke-opacity', 0.6)
@@ -296,7 +339,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
     // 创建节点组
     const node = g.append('g')
       .selectAll<SVGGElement, Node>('g')
-      .data(data.nodes)
+      .data(data.data.nodes)
       .join<SVGGElement>('g');
 
     // 拖拽行为
@@ -387,7 +430,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           ${d.nodeType !== 'center' ? `
             <div class="mt-1 text-xs" style="color: #888">
               ${d.nodeType === 'mentor' ? '导师节点' : 
-                d.nodeType === 'peer' ? '同伴节点' : '游离节点'}
+                d.nodeType === 'peer' ? '��伴节点' : '游离节点'}
             </div>
           ` : ''}
         `;
@@ -500,8 +543,8 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         });
       
       // 如果点击的不是中心节点，请求 AI 分析
-      if (d.id !== data.center.id) {
-        await requestAnalysis(data.center.id, d.id);
+      if (d.id !== data.data.center.id) {
+        await requestAnalysis(data.data.center.id, d.id);
       }
     });
 
@@ -527,8 +570,8 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       .style('opacity', 1);
 
     // 添加调试日志
-    console.log('Nodes:', data.nodes);
-    console.log('Links:', data.links);
+    console.log('Nodes:', data.data.nodes);
+    console.log('Links:', data.data.links);
 
     return () => {
       simulation.stop();
@@ -587,7 +630,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           background: 'transparent',
         }} 
       />
-      {selectedNode && selectedNode.id !== data.center.id && (
+      {selectedNode && selectedNode.id !== data.data.center.id && (
         <div
           className="absolute"
           style={{
@@ -601,14 +644,21 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
               <h3 className="text-lg font-bold">{selectedNode.id}</h3>
             </div>
             {isLoading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+              <div className="flex flex-col items-center justify-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4" />
+                <div className="text-gray-500">正在分析关系...</div>
               </div>
             ) : aiAnalysis ? (
               <div className="prose prose-sm max-w-none">
-                <div className="whitespace-pre-wrap text-gray-700">
-                  {aiAnalysis}
-                </div>
+                {aiAnalysis.startsWith('AI 分析失败') || aiAnalysis.startsWith('AI 分析请求失败') ? (
+                  <div className="text-red-500 bg-red-50 p-4 rounded-lg">
+                    {aiAnalysis}
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap text-gray-700">
+                    {aiAnalysis}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-gray-500 text-center py-4">
