@@ -12,6 +12,7 @@ import logging
 from fastapi import FastAPI
 from datetime import datetime
 from dotenv import load_dotenv
+import random
 
 # 加载 .env 文件
 load_dotenv()
@@ -414,7 +415,7 @@ def get_repo_scale(repo_full_name: str) -> float:
        
        quality_score = min(1.0, (math.log(size + 1) / math.log(1000000) * 0.3 +        # 代码量
                                 issue_resolution_rate * 0.4 +                            # issue解决率
-                                math.log(contributor_count + 1) / math.log(100) * 0.3))  # 贡献者数量
+                                math.log(contributor_count + 1) / math.log(100) * 0.3))  # 贡献者��量
        
        # 4. 综合计算最终得分 (0-1)
        # 权重分配：社区热度(0.4) + 活跃度(0.3) + 代码质量(0.3)
@@ -456,8 +457,8 @@ def calculate_user_user_similarity(user1: str, user2: str) -> float:
     size2 = sum(repo.get('size', 0) for repo in repos2)
     size_similarity = 1 - abs(size1 - size2) / max(size1 + size2, 1)
     
-    # 综合计算 (30% + 40% + 30%)
-    return 0.3 * lang_similarity + 0.4 * topic_similarity + 0.3 * size_similarity
+    # 综合计算 (20% + 30% + 50%)
+    return 0.2 * lang_similarity + 0.3 * topic_similarity + 0.5 * size_similarity
 
 def calculate_repo_repo_similarity(repo1: str, repo2: str) -> float:
     """计算仓库-仓库相似度（多维度）"""
@@ -533,22 +534,39 @@ def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, 
         count = N if count is None else min(count, N)
         total_count = count * 3  # 获取3倍的推荐结果，多出的部分用作游离节点
         
-        # 计算推荐池大小 (25-50)
+        # 扩大推荐池大小 (50-100)，并增加随机性
         user_scale = get_user_scale(name)
-        pool_size = int(25 + (user_scale - 20) * 1.25)
+        base_pool_size = 50  # 基础池大小
+        scale_factor = (user_scale - 20) * 2.5  # 增加规模因子的影响
+        pool_size = int(base_pool_size + scale_factor)
+        pool_size = min(max(pool_size, 50), 100)  # 确保在50-100之间
         
         logger.info(f"Processing recommendation request: {type_str}/{name} -> {find}, count={count}, total_count={total_count}, pool_size={pool_size}")
 
+        # 获取中心节点信息
+        center_metrics = {}
+        if type_str == 'user':
+            center_info = get_user_info(name)
+            if center_info:
+                center_metrics = {
+                    'followers': center_info.get('followers', 0),
+                    'following': center_info.get('following', 0),
+                    'public_repos': center_info.get('public_repos', 0),
+                    'size': user_scale
+                }
+        else:  # type_str == 'repo'
+            center_info = get_repo_info(name)
+            if center_info:
+                center_metrics = {
+                    'stars': center_info.get('stargazers_count', 0),
+                    'forks': center_info.get('forks_count', 0),
+                    'watchers': center_info.get('watchers_count', 0),
+                    'size': get_repo_scale(name)
+                }
+
+        # 更新基础响应中的指标信息
         base_response = {
-            'metrics': {
-                'stars': 0,
-                'forks': 0,
-                'watchers': 0,
-                'size': 0,
-                'followers': 0,
-                'following': 0,
-                'public_repos': 0
-            },
+            'metrics': center_metrics,  # 使用获取到的中心节点指标
             'recommendations': [],
             'status': 'success',
             'message': ''
@@ -577,6 +595,79 @@ def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, 
                 is_active = False
 
             try:
+                # 获取候选用户
+                with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+                    # 获取更大范围的候选用户
+                    similar_scale_query = f'followers:>5 repos:>1'  # 降低筛选条件
+                    candidates = session.get(
+                        f"{GITHUB_API}/search/users",
+                        params={
+                            'q': similar_scale_query,
+                            'sort': 'followers',
+                            'per_page': pool_size * 2  # 获取更多候选人
+                        }
+                    ).json().get('items', [])
+                    
+                    # 随机打乱候选人顺序，增加推荐的多样性
+                    candidates = [c['login'] for c in candidates if c['login'] != name]
+                    random.shuffle(candidates)
+                    candidates = candidates[:pool_size]  # 取前pool_size个
+                    
+                    # 并行获取所有候选用户的信息和计算相似度
+                    future_to_candidate = {}
+                    for candidate in candidates:
+                        def process_candidate(candidate=candidate):
+                            return (
+                                candidate,
+                                calculate_user_user_similarity(name, candidate),
+                                get_user_info(candidate),
+                                get_user_scale(candidate)
+                            )
+                        future_to_candidate[executor.submit(process_candidate)] = candidate
+                    
+                    all_recommendations = []
+                    for future in concurrent.futures.as_completed(future_to_candidate):
+                        try:
+                            candidate, similarity, user_info, candidate_scale = future.result()
+                            if user_info:
+                                # 基于相似度确定节点类型
+                                if similarity >= 0.7:
+                                    node_type = 'mentor'    # 高相似度用户
+                                elif similarity >= 0.4:
+                                    node_type = 'peer'      # 中等相似度用户
+                                else:
+                                    node_type = 'floating'  # 低相似度用户
+
+                                all_recommendations.append({
+                                    'name': candidate,
+                                    'metrics': {
+                                        'followers': user_info.get('followers', 0),
+                                        'following': user_info.get('following', 0),
+                                        'public_repos': user_info.get('public_repos', 0),
+                                        'size': candidate_scale
+                                    },
+                                    'similarity': similarity,
+                                    'nodeType': node_type  # 添加节点类型
+                                })
+                        except Exception as e:
+                            logger.error(f"Error processing candidate: {str(e)}")
+                            continue
+                    
+                    # 最终推荐结果也可以加入一定随机性
+                    if len(all_recommendations) > count:
+                        # 保留相似度最高的前20%
+                        top_count = max(1, count // 5)
+                        top_recommendations = all_recommendations[:top_count]
+                        # 从剩余结果中随机选择
+                        remaining_count = count - top_count
+                        remaining_pool = all_recommendations[top_count:]
+                        random.shuffle(remaining_pool)
+                        selected_recommendations = remaining_pool[:remaining_count]
+                        # 合并结果
+                        base_response['recommendations'] = top_recommendations + selected_recommendations
+                    else:
+                        base_response['recommendations'] = all_recommendations
+
                 # 并行获取用户信息和关注列表
                 with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
                     future_user_info = executor.submit(get_user_info, name)
@@ -1067,7 +1158,7 @@ def analyze_with_llm(node_a: str, node_b: str) -> str:
         "messages": [
             {
                 "role": "system",
-                "content": "你是一个致力于维护github开源社区的工作员，你的职责是分析用户和项目之间的相似点，目标是促进协作和技术交流。对于两个github仓库：分析它们的相似之处，目的是找到能够吸引一个仓库的贡献者愿意维护另一个仓库的理由对于两个用户：分析他们的偏好和��术栈相似点，目的是促成他们成为好友并深入交流技术。对于一个用户和一个仓库：分析用户的偏好或技术栈与仓库特征的相似点，目的是说服用户参与该仓库的贡献。输出要求：不要用markdown的语法，你的回答必须是有序列表格式，每个列表项应包含清晰且详细的理由，在每个理由前标上序号。不需要任何叙性语句或解释，只需列出分析结果。语气务必坚定，确保每个理由都显得可信且具有说服力。请判断清楚2个主体分别是用户还是仓库。不要用markdown语法，请用没有格式的纯文本。"
+                "content": "你是一个致力于维护github开源社区的工作员，你的职责是分析用户和项目之间的相似点，目标是促进协作和技术交流。对于两个github仓库：分析它们的相似之处，目的是找到能够吸引一个仓库的贡献者愿意维护另一个仓库的理由对于两个用户：分析他们的偏好和术栈相似点，目的是促成他们成为好友并深入交流技术。对于一个用户和一个仓库：分析用户的偏好或技术栈与仓库特征的相似点，目的是说服用户参与该仓库的贡献。输出要求：不要用markdown的语法，你的回答必须是有序列表格式，每个列表项应包含清晰且详细的理由，在每个理由前标上序号。不需要任何叙性语句或解释，只需列出分析结果。语气务必坚定，确保每个理由都显得可信且具有说服力。请判断清楚2个主体分别是用户还是仓库。不要用markdown语法，请用没有格式的纯文本。"
             },
             {
                 "role": "user",
