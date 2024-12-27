@@ -46,7 +46,10 @@ export default function Home() {
         throw new Error(result.error || '获取数据失败')
       }
       
-      setGraphData(result.data)
+      setGraphData({
+        ...result,
+        timestamp: Date.now()
+      })
       setSelectedNode(null)
     } catch (error: any) {
       setError(error.message || '搜索失败')

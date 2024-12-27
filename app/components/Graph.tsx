@@ -6,13 +6,18 @@ import { message } from 'antd';
 
 export interface Node extends d3.SimulationNodeDatum {
   id: string;
-  group: number;
   type: 'user' | 'repo';
   nodeType: 'center' | 'mentor' | 'peer' | 'floating';
   metrics: {
     size: number;
+    // 仓库相关指标
     stars?: number;
+    forks?: number;
+    watchers?: number;
+    // 用户相关指标
     followers?: number;
+    following?: number;
+    public_repos?: number;
   };
   similarity?: number;
 }
@@ -126,27 +131,22 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
   };
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current) return;
+    if (!svgRef.current || !containerRef.current || !data?.data) return;
+
+    const nodes = data.data.nodes || [];
+    const links = data.data.links || [];
+    const center = data.data.center;
 
     // 检查是否有错误
     if (!data.success) {
       const errorInfo = getErrorMessage(data.error_type || 'INTERNAL_ERROR', data.message || '未知错误');
-      message.error({
-        content: (
-          <div>
-            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{errorInfo.title}</div>
-            <div>{errorInfo.description}</div>
-          </div>
-        ),
-        duration: 5
-      });
-      setError(data.message || '获取数据失败');
+      setError(errorInfo.title);
       return;
     }
 
     // 如果请求成功但没有数据
-    if (!data.data || !data.data.nodes || data.data.nodes.length === 0) {
-      message.warning('没有找到推荐结果');
+    if (nodes.length === 0) {
+      setError('没有找到推荐结果');
       return;
     }
 
@@ -221,7 +221,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       if (d.nodeType === 'peer') {
         return d.type === 'user' ? '#60A5FA' : '#C084FC';  // 加深蓝/紫色
       }
-      // 游离节点使用渐变��，根据相似度变化
+      // 游离节点使用渐变，根据相似度变化
       if (d.type === 'user') {
         const similarity = d.similarity || 0;
         // 蓝色渐变：从浅到深
@@ -244,103 +244,67 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
     };
 
     // 力导向图配置
-    const simulation = d3.forceSimulation<Node>(data.data.nodes)
-      .force('link', d3.forceLink<Node, Link>(data.data.links)
-        .id(d => d.id)
-        .distance(link => {
+    const simulation = d3.forceSimulation<Node>(nodes)
+      .force('link', d3.forceLink<Node, Link>(links)
+        .id((d: Node) => d.id)
+        .distance((link: Link) => {
           const similarity = link.value || 0;
-          // 缩小连接线的距离范围
-          const minDistance = 50;   // 减小最小距离
-          const maxDistance = 400;  // 减小最大距离
+          const minDistance = 50;
+          const maxDistance = 400;
           return minDistance + Math.pow(1 - similarity, 4) * (maxDistance - minDistance);
         }))
       .force('charge', d3.forceManyBody()
-        .strength((d: Node) => {
-          const similarity = d.similarity || 0;
-          if (d.nodeType === 'center') return -2000;  // 减小中心节点斥力
+        .strength((d: any) => {
+          const node = d as Node;
+          const similarity = node.similarity || 0;
+          if (node.nodeType === 'center') return -2000;
           
-          const rank = data.data.nodes
-            .filter(n => n.nodeType === d.nodeType)
+          const rank = nodes
+            .filter(n => n.nodeType === node.nodeType)
             .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
-            .findIndex(n => n.id === d.id);
+            .findIndex(n => n.id === node.id);
           
-          const rankFactor = Math.pow(1 - rank / Math.max(1, data.data.nodes.filter(n => n.nodeType === d.nodeType).length - 1), 0.5);
+          const rankFactor = Math.pow(1 - rank / Math.max(1, nodes.filter(n => n.nodeType === node.nodeType).length - 1), 0.5);
           
           const baseStrength = {
-            'mentor': -800,   // 减小斥力
-            'peer': -600,     // 减小斥力
-            'floating': -400  // 减小斥力
-          }[d.nodeType] || -400;
+            'mentor': -800,
+            'peer': -600,
+            'floating': -400
+          }[node.nodeType] || -400;
           
           return baseStrength * (1 + similarity * 0.3 + rankFactor * 0.7);
         }))
       .force('center', d3.forceCenter(width / 2, height / 2).strength(0.1))
       .force('collision', d3.forceCollide()
-        .radius((d: Node) => getNodeRadius(d) + 5)  // 显式类型标注
-        .strength(0.5))
-      .force('radial', d3.forceRadial(
-        (d: Node) => {
-          if (d.id === data.data.center.id) return 0;
-          const similarity = d.similarity || 0;
-          
-          const getDistanceBySimilarity = (sim: number, minDist: number, maxDist: number) => {
-            const rank = data.data.nodes
-              .filter(n => n.nodeType === d.nodeType)
-              .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
-              .findIndex(n => n.id === d.id);
-            
-            const rankRatio = rank / Math.max(1, data.data.nodes.filter(n => n.nodeType === d.nodeType).length - 1);
-            const similarityFactor = Math.pow(1 - sim, 2);
-            const rankFactor = Math.pow(rankRatio, 0.5);
-            
-            return minDist + (similarityFactor * 0.3 + rankFactor * 0.7) * (maxDist - minDist);
-          };
-          
-          if (d.nodeType === 'mentor') {
-            // 导师节点：100-400px (缩小范围)
-            return getDistanceBySimilarity(similarity, 100, 400);
-          }
-          if (d.nodeType === 'peer') {
-            // 同伴节点：150-500px (缩小范围)
-            return getDistanceBySimilarity(similarity, 150, 500);
-          }
-          if (d.nodeType === 'floating') {
-            // 游离节点：250-600px (缩小范围)
-            return getDistanceBySimilarity(similarity, 250, 600);
-          }
-          return 150;
-        },
-        width / 2,
-        height / 2
-      ).strength((d: Node) => {
-        // 增加径向力强度，使节点更稳定
-        const similarity = d.similarity || 0;
-        if (d.nodeType === 'floating') {
-          return 0.4 + similarity * 0.4;  // 0.4-0.8 增加基础强度
-        }
-        if (d.nodeType === 'mentor') {
-          return 0.8 + similarity * 0.2;  // 0.8-1.0
-        }
-        if (d.nodeType === 'peer') {
-          return 0.6 + similarity * 0.3;  // 0.6-0.9
-        }
-        return 1;
-      }))
+        .radius((d: any) => {
+          const node = d as Node;
+          return getNodeRadius(node) + 5;
+        })
+        .strength(0.5));
 
     // 绘制连接线
     const link = g.append('g')
       .selectAll('line')
-      .data(data.data.links)
+      .data(links)
       .join('line')
       .attr('stroke', '#E5E5E5')
       .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 1);
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', function(this: SVGLineElement | null) {
+        if (!this) return '';
+        return `${this.getTotalLength()} ${this.getTotalLength()}`;
+      } as any)
+      .attr('stroke-dashoffset', function(this: SVGLineElement | null) {
+        if (!this) return 0;
+        return this.getTotalLength();
+      } as any);
 
     // 创建节点组
     const node = g.append('g')
       .selectAll<SVGGElement, Node>('g')
-      .data(data.data.nodes)
-      .join<SVGGElement>('g');
+      .data(nodes)
+      .join<SVGGElement>('g')
+      .attr('class', 'node');
 
     // 拖拽行为
     const dragBehavior = d3.drag<SVGGElement, Node>()
@@ -366,20 +330,18 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
     // 修改节点绘制部分
     node.append('circle')
-      .attr('r', getNodeRadius)
-      .attr('fill', getNodeColor)
+      .attr('r', (d: Node) => getNodeRadius(d))
+      .attr('fill', (d: Node) => getNodeColor(d))
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
-      .attr('opacity', d => {
+      .attr('opacity', (d: Node) => {
         if (d.nodeType === 'floating') return 0.8;
         if (d.nodeType === 'peer') return 0.9;
         return 1;
       })
-      // 添加过渡动画
       .style('transform-origin', 'center')
       .style('transition', 'all 0.3s ease')
-      // 修改节点的悬停效果
-      .on('mouseover', function(event, d) {
+      .on('mouseover', function(event: MouseEvent, d: Node) {
         // 放大效果
         d3.select(this)
           .transition()
@@ -430,7 +392,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           ${d.nodeType !== 'center' ? `
             <div class="mt-1 text-xs" style="color: #888">
               ${d.nodeType === 'mentor' ? '导师节点' : 
-                d.nodeType === 'peer' ? '��伴节点' : '游离节点'}
+                d.nodeType === 'peer' ? '同伴节点' : '游离节点'}
             </div>
           ` : ''}
         `;
@@ -520,42 +482,43 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         .attr('x2', d => (d.target as Node).x!)
         .attr('y2', d => (d.target as Node).y!);
 
-      node.attr('transform', d => `translate(${d.x},${d.y})`);
+      node.attr('transform', (d: Node) => `translate(${d.x},${d.y})`);
     });
 
     // 修改点击事件处理
     node.on('click', async (event, d) => {
       event.stopPropagation();
-      onNodeClick(d);
+      const node = d as Node;
+      onNodeClick(node);
       
       // 添加点击波纹动画
       const ripple = d3.select(event.currentTarget).select('.ripple');
       ripple
-        .attr('stroke', getNodeColor(d))
+        .attr('stroke', getNodeColor(node))
         .attr('stroke-width', 2)
         .attr('stroke-opacity', 1)
         .transition()
         .duration(700)
-        .attr('r', getNodeRadius(d) * 2)
+        .attr('r', getNodeRadius(node) * 2)
         .attr('stroke-opacity', 0)
         .on('end', function() {
           d3.select(this).attr('r', 0);
         });
       
       // 如果点击的不是中心节点，请求 AI 分析
-      if (d.id !== data.data.center.id) {
-        await requestAnalysis(data.data.center.id, d.id);
+      if (node.id !== data.data?.center.id) {
+        await requestAnalysis(data.data?.center.id || '', node.id);
       }
     });
 
-    // 添加连接线动画
+    // 修改连接线动画
     link
-      .attr('stroke-dasharray', function() {
-        const length = this.getTotalLength();
+      .attr('stroke-dasharray', function(this: SVGLineElement) {
+        const length = this?.getTotalLength() || 0;
         return `${length} ${length}`;
       })
-      .attr('stroke-dashoffset', function() {
-        return this.getTotalLength();
+      .attr('stroke-dashoffset', function(this: SVGLineElement) {
+        return this?.getTotalLength() || 0;
       })
       .transition()
       .duration(1000)
@@ -597,15 +560,15 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         <h3 className="text-xl font-bold mb-4">推荐失败</h3>
         <div className="text-center">
           <p className="mb-2">{error}</p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 mb-2">
             可能的原因：
-            <ul className="list-disc text-left mt-2 ml-4">
-              <li>GitHub API 访问限制</li>
-              <li>网络连接问题</li>
-              <li>用户或仓库不存在</li>
-              <li>没有找到合适的推荐结果</li>
-            </ul>
           </p>
+          <ul className="list-disc text-left mt-2 ml-4 text-sm text-gray-500">
+            <li>GitHub API 访问限制</li>
+            <li>网络连接问题</li>
+            <li>用户或仓库不存在</li>
+            <li>没有找到合适的推荐结果</li>
+          </ul>
         </div>
       </div>
     );
@@ -630,7 +593,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           background: 'transparent',
         }} 
       />
-      {selectedNode && selectedNode.id !== data.data.center.id && (
+      {selectedNode && data?.data?.center && selectedNode.id !== data.data.center.id && (
         <div
           className="absolute"
           style={{
