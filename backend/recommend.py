@@ -463,7 +463,7 @@ def get_user_starred(username: str, max_stars: int = 10) -> List[Dict]:
         response = session.get(
             f"{GITHUB_API}/users/{username}/starred",
             headers=headers,
-            params={'per_page': max_stars},  # 只获取前10个star的仓库
+            params={'per_page': max_stars},  # 只获取前10个star的���库
             timeout=5
         )
         return response.json() if response.status_code == 200 else []
@@ -808,19 +808,21 @@ def calculate_user_repo_similarity(username: str, repo_name: str) -> float:
     # 使用对数尺度来平滑差异
     activity_match = 1 - abs(math.log(user_activity + 1) - math.log(repo_activity + 1)) / max(math.log(max(user_activity, repo_activity) + 1), 1)
     
-    # 综合计算 (30% + 30% + 40%)
+    # 综合计�� (30% + 30% + 40%)
     similarity = 0.3 * language_match + 0.3 * topic_match + 0.4 * activity_match
     
     # 确保最小相似度
     return max(0.1, similarity)
 
 def get_candidates_batch(repos: List[Dict], session: requests.Session, max_per_repo: int = 10) -> Set[str]:
-    """批量获取仓库贡献���"""
+    """批量获取仓库贡献者，增加多样性和实时性"""
     candidates = set()
+    
+    # 1. 从仓库贡献者获取候选人
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_repo = {
             executor.submit(get_repo_contributors, repo['full_name']): repo 
-            for repo in repos
+            for repo in repos[:5]  # 限制仓库数量以提高效率
         }
         for future in concurrent.futures.as_completed(future_to_repo):
             try:
@@ -828,21 +830,89 @@ def get_candidates_batch(repos: List[Dict], session: requests.Session, max_per_r
                 candidates.update(c['login'] for c in contributors)
             except Exception:
                 continue
+
+    # 2. 从相似仓库获取候选人
+    try:
+        for repo in repos[:3]:  # 取前3个仓库
+            similar_repos = get_similar_repos(repo['full_name'])[:3]  # 每个仓库取3个相似仓库
+            for similar_repo in similar_repos:
+                contributors = get_repo_contributors(similar_repo['full_name'])[:5]
+                candidates.update(c['login'] for c in contributors)
+    except Exception as e:
+        logger.error(f"Error getting similar repos contributors: {str(e)}")
+
+    # 3. 从最近活跃用户获取候选人
+    try:
+        for repo in repos[:2]:  # 取前2个仓库
+            response = session.get(
+                f"{GITHUB_API}/repos/{repo['full_name']}/events",
+                params={'per_page': 10}
+            )
+            if response.status_code == 200:
+                events = response.json()
+                for event in events:
+                    if event['type'] in ['PushEvent', 'PullRequestEvent', 'IssuesEvent']:
+                        candidates.add(event['actor']['login'])
+    except Exception as e:
+        logger.error(f"Error getting recent active users: {str(e)}")
+
+    # 4. 从trending用户获取候选人
+    try:
+        response = session.get(
+            f"{GITHUB_API}/search/users",
+            params={
+                'q': f"language:{repos[0]['language']} followers:>10",
+                'sort': 'joined',
+                'order': 'desc',
+                'per_page': 5
+            }
+        )
+        if response.status_code == 200:
+            trending_users = response.json().get('items', [])
+            candidates.update(user['login'] for user in trending_users)
+    except Exception as e:
+        logger.error(f"Error getting trending users: {str(e)}")
+
+    # 5. 从相关话题获取候选人
+    try:
+        topics = set()
+        for repo in repos[:3]:
+            topics.update(repo.get('topics', []))
+        
+        if topics:
+            topic = random.choice(list(topics))
+            response = session.get(
+                f"{GITHUB_API}/search/repositories",
+                params={
+                    'q': f"topic:{topic}",
+                    'sort': 'updated',
+                    'order': 'desc',
+                    'per_page': 3
+                }
+            )
+            if response.status_code == 200:
+                topic_repos = response.json().get('items', [])
+                for repo in topic_repos:
+                    contributors = get_repo_contributors(repo['full_name'])[:3]
+                    candidates.update(c['login'] for c in contributors)
+    except Exception as e:
+        logger.error(f"Error getting topic related users: {str(e)}")
+
     return candidates
 
-def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, Any]:
+def recommend(type_str: str, name: str, find: str, count: Optional[int] = None) -> Dict:
     """推荐函数"""
     try:
         session = get_session()
         count = N if count is None else min(count, N)
-        total_count = count * 2.6  # 稍微减少总数
+        total_count = count * 5  # 增加总数以适应更多的连接节点
         
-        # 计算 pool_size，降低到原来的80%
+        # 增加推荐池规模
         user_scale = get_user_scale(name)
-        base_pool_size = 40  # 原来是50，降低到40
-        scale_factor = (user_scale - 20) * 2  # 原来是2.5，降低到2
+        base_pool_size = 100  # 最小池大小
+        scale_factor = (user_scale - 20) * 5  # 保持不变
         pool_size = int(base_pool_size + scale_factor)
-        pool_size = min(max(pool_size, 40), 80)  # 原来是50-100，改为40-80
+        pool_size = min(max(pool_size, 100), 200)  # 保持不变
         
         logger.info(f"Processing recommendation request: {type_str}/{name} -> {find}, count={count}, pool_size={pool_size}")
         
@@ -1117,7 +1187,7 @@ def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, 
                                 if user_info:
                                     # 基于相似度确定节点类型
                                     if similarity >= 0.7:
-                                        node_type = 'mentor'    # 高相似度用户
+                                        node_type = 'mentor'    # ��相似度用户
                                     elif similarity >= 0.4:
                                         node_type = 'peer'      # 中等相似度用户
                                     else:
@@ -1486,11 +1556,81 @@ def recommend(type_str: str, name: str, find: str, count: int = N) -> Dict[str, 
                 'message': error_msg
             })
 
+        # 修改节点处理逻辑
+        if total_count > 0:
+            # 随机打乱所有推荐结果
+            random.shuffle(all_recommendations)
+            
+            # 根据节点大小分类
+            large_nodes = []    # size >= 33
+            medium_nodes = []   # 25 <= size < 33
+            small_nodes = []    # size < 25
+            
+            for item in all_recommendations:
+                node_size = item['metrics'].get('size', 20)
+                if node_size >= 33:
+                    large_nodes.append(item)
+                elif node_size >= 25:
+                    medium_nodes.append(item)
+                else:
+                    small_nodes.append(item)
+            
+            # 随机打乱每个类别内的节点
+            random.shuffle(large_nodes)
+            random.shuffle(medium_nodes)
+            random.shuffle(small_nodes)
+            
+            # 选择核心节点（mentor + peer）
+            core_nodes = []
+            
+            # 从大规模节点中选择 mentor 节点（6-10个）
+            mentor_count = min(len(large_nodes), max(6, min(10, count // 3)))
+            for item in large_nodes[:mentor_count]:
+                item['nodeType'] = 'mentor'
+                core_nodes.append(item)
+            
+            # 从中等规模节点中选择 peer 节点（9-15个）
+            peer_count = min(len(medium_nodes), max(9, min(15, count // 2)))
+            for item in medium_nodes[:peer_count]:
+                item['nodeType'] = 'peer'
+                core_nodes.append(item)
+            
+            # 确保连接节点总数在15-25个之间
+            total_connected = len(core_nodes)
+            if total_connected < 15:
+                # 如果连接节点不足15个，从剩余节点中补充
+                remaining = large_nodes[mentor_count:] + medium_nodes[peer_count:]
+                random.shuffle(remaining)
+                for item in remaining[:15-total_connected]:
+                    item['nodeType'] = 'peer'  # 默认作为peer节点
+                    core_nodes.append(item)
+            elif total_connected > 25:
+                # 如果超过25个，随机移除一些
+                random.shuffle(core_nodes)
+                core_nodes = core_nodes[:25]
+            
+            # 增加漂浮节点（10-20个）
+            floating_nodes = []
+            remaining_slots = max(10, min(20, pool_size - len(core_nodes)))
+            
+            # 合并所有可用的漂浮节点并随机打乱
+            potential_floating = [n for n in all_recommendations if n not in core_nodes]
+            random.shuffle(potential_floating)
+            
+            for item in potential_floating[:remaining_slots]:
+                item['nodeType'] = 'floating'
+                floating_nodes.append(item)
+            
+            # 合并最终结果
+            final_recommendations = core_nodes + floating_nodes
+            
+            base_response['recommendations'] = final_recommendations
+
         return base_response
 
     except Exception as e:
-        logger.error(f"Error in recommend function: {str(e)}")
-        return base_response
+        logger.error(f"Error in recommend: {str(e)}")
+        return None
 
 def process_recommendation(item_similarity: Tuple[str, float], find: str) -> Dict:
     """处理单个推荐结果（用于并行理）"""

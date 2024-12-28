@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, Dict, Any, List, Union
 from pydantic import BaseModel, Field
 from recommend import recommend, N, analyze_with_llm, logger
+from algorithm_explain import get_algorithm_explanation
 
 
 app = FastAPI(
@@ -247,7 +248,7 @@ async def analyze_nodes(
     - **node_b**: 第二个节点的标识（用户名或仓库全名，例如：'torvalds' 或 'facebook/react'）
     
     返回：
-    - 分析结果，包含两个节点之间的关系分析
+    - 分析结果，包含两个节点��间的关系分析
     """
     try:
         logger.info(f"Analyzing relationship between {node_a} and {node_b}")
@@ -269,6 +270,16 @@ async def analyze_nodes(
             "analysis": "",
             "message": str(e)
         }
+
+@app.get("/api/explain")
+async def explain_algorithm(type: str, mode: str = None):
+    """算法解释接口"""
+    try:
+        explanation = get_algorithm_explanation(type, mode)
+        return {"status": "success", "explanation": explanation}
+    except Exception as e:
+        logger.error(f"Error in explain_algorithm: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

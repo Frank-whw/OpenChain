@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { message } from 'antd';
+import AlgorithmExplain from './AlgorithmExplain';
+import { Button } from './ui/button';
 
 export interface Node extends d3.SimulationNodeDatum {
   id: string;
@@ -53,6 +55,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
   const [error, setError] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [showAlgorithmExplain, setShowAlgorithmExplain] = useState(false);
 
   // 获取错误提示信息
   const getErrorMessage = (error_type: string, message: string) => {
@@ -221,66 +224,101 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       if (d.nodeType === 'peer') {
         return d.type === 'user' ? '#60A5FA' : '#C084FC';  // 加深蓝/紫色
       }
-      // 游离节点使用渐变，根据相似度变化
+      // 游离节点使用渐变，颜色加深
       if (d.type === 'user') {
         const similarity = d.similarity || 0;
-        // 蓝色渐变：从浅到深
-        return similarity > 0.7 ? '#60A5FA' :
-               similarity > 0.5 ? '#93C5FD' :
-               similarity > 0.3 ? '#BFDBFE' : '#DBEAFE';
+        // 蓝色渐变：从浅到深，整体加深
+        return similarity > 0.7 ? '#3B82F6' :  // 更深的蓝色
+               similarity > 0.5 ? '#60A5FA' :
+               similarity > 0.3 ? '#60A5FA' : '#93C5FD';
       } else {
         const similarity = d.similarity || 0;
-        // 紫色渐变：从浅到深
-        return similarity > 0.7 ? '#C084FC' :
-               similarity > 0.5 ? '#DDD6FE' :
-               similarity > 0.3 ? '#E9D5FF' : '#F3E8FF';
+        // 紫色渐变：从浅到深，整体加深 - 加深仓库的颜色
+        return similarity > 0.7 ? '#9333EA' :  // 最深的紫色
+               similarity > 0.5 ? '#A855F7' :  // 深紫色
+               similarity > 0.3 ? '#A855F7' : '#C084FC';  // 中等紫色
       }
     };
 
     // 获取文本颜色
     const getTextColor = (d: Node) => {
       if (d.id === data.data.center.id) return '#fff';  // 中心节点文本为白色
-      return '#333';  // 其他节点文本为深灰色
+      return '#333';  // 其他节点文本为深
     };
 
     // 力导向图配置
     const simulation = d3.forceSimulation<Node>(nodes)
       .force('link', d3.forceLink<Node, Link>(links)
-        .id((d: Node) => d.id)
-        .distance((link: Link) => {
+        .id(d => d.id)
+        .distance(link => {
           const similarity = link.value || 0;
-          const minDistance = 50;
-          const maxDistance = 400;
+          // 连接线距离根据相似度有更大的变化范围
+          const minDistance = 100;   // 最小距离
+          const maxDistance = 400;   // 增加最大距离
+          // 使用四次方来增加距离差异
           return minDistance + Math.pow(1 - similarity, 4) * (maxDistance - minDistance);
         }))
       .force('charge', d3.forceManyBody()
         .strength((d: any) => {
           const node = d as Node;
-          const similarity = node.similarity || 0;
-          if (node.nodeType === 'center') return -2000;
-          
-          const rank = nodes
-            .filter(n => n.nodeType === node.nodeType)
-            .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
-            .findIndex(n => n.id === node.id);
-          
-          const rankFactor = Math.pow(1 - rank / Math.max(1, nodes.filter(n => n.nodeType === node.nodeType).length - 1), 0.5);
-          
-          const baseStrength = {
-            'mentor': -800,
-            'peer': -600,
-            'floating': -400
-          }[node.nodeType] || -400;
-          
-          return baseStrength * (1 + similarity * 0.3 + rankFactor * 0.7);
+          if (node.nodeType === 'center') return -2000;  // 保持中心节点斥力
+          if (node.nodeType === 'mentor') return -1000;  // 保持导师节点斥力
+          if (node.nodeType === 'peer') return -800;     // 保持同伴节点斥力
+          if (node.nodeType === 'floating') return -400; // 保持漂浮节点斥力
+          return -400;
         }))
-      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.1))
+      .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide()
-        .radius((d: any) => {
-          const node = d as Node;
-          return getNodeRadius(node) + 5;
-        })
-        .strength(0.5));
+        .radius(d => getNodeRadius(d) + 8)
+        .strength(0.8))
+      // 修改径向力配置
+      .force('radial', d3.forceRadial(
+        (d: Node) => {
+          if (d.nodeType === 'center') return 0;
+          
+          const similarity = d.similarity || 0;
+          
+          if (d.nodeType === 'floating') {
+            // 漂浮节点距离差异更大
+            const baseDistance = 400;  // 增加基础距离
+            // 使用四次方函数增加距离差异
+            return baseDistance + Math.pow(1 - similarity, 4) * 300;  // 400-700范围
+          }
+          
+          // 导师和同伴节点的距离差异更明显
+          const baseDistance = 150;
+          const maxDistance = 400;   // 增加最大距离
+          
+          // 根据节点类型和相似度计算距离
+          if (d.nodeType === 'mentor') {
+            // 导师节点距离范围：150-400
+            return baseDistance + Math.pow(1 - similarity, 3) * (maxDistance - baseDistance);
+          } else {
+            // 同伴节点距离范围：200-450
+            return (baseDistance + 50) + Math.pow(1 - similarity, 3) * (maxDistance - baseDistance);
+          }
+        },
+        width / 2,
+        height / 2
+      ).strength((d: Node) => {
+        // 增加径向力的差异
+        if (d.nodeType === 'floating') {
+          const similarity = d.similarity || 0;
+          // 相似度越低，径向力越强
+          return 0.1 + Math.pow(1 - similarity, 2) * 0.15;  // 0.1-0.25范围
+        }
+        if (d.nodeType === 'mentor') {
+          const similarity = d.similarity || 0;
+          // 相似度越高，径向力越强
+          return 0.3 + Math.pow(similarity, 2) * 0.3;  // 0.3-0.6范围
+        }
+        if (d.nodeType === 'peer') {
+          const similarity = d.similarity || 0;
+          // 相似度越高，径向力越强
+          return 0.2 + Math.pow(similarity, 2) * 0.25;  // 0.2-0.45范围
+        }
+        return 0.1;
+      }));
 
     // 绘制连接线
     const link = g.append('g')
@@ -330,18 +368,18 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
     // 修改节点绘制部分
     node.append('circle')
-      .attr('r', (d: Node) => getNodeRadius(d))
-      .attr('fill', (d: Node) => getNodeColor(d))
+      .attr('r', getNodeRadius)
+      .attr('fill', getNodeColor)
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
-      .attr('opacity', (d: Node) => {
-        if (d.nodeType === 'floating') return 0.8;
+      .attr('opacity', d => {
+        if (d.nodeType === 'floating') return 0.6;
         if (d.nodeType === 'peer') return 0.9;
         return 1;
       })
       .style('transform-origin', 'center')
       .style('transition', 'all 0.3s ease')
-      .on('mouseover', function(event: MouseEvent, d: Node) {
+      .on('mouseover', function(event, d) {
         // 放大效果
         d3.select(this)
           .transition()
@@ -349,6 +387,16 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           .attr('r', d => getNodeRadius(d) * 1.2)
           .style('filter', 'drop-shadow(0 0 6px rgba(0,0,0,0.2))');
           
+        // 如果是漂浮节点显示文本
+        if (d.nodeType === 'floating') {
+          d3.select(this.parentNode)
+            .select('text')
+            .text(d.id)
+            .transition()
+            .duration(200)
+            .attr('opacity', 0.8);
+        }
+        
         // 显示详细信息标签
         const tooltip = d3.select('body').append('div')
           .attr('class', 'tooltip')
@@ -449,10 +497,20 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           
         node.selectAll('circle')
           .style('opacity', d => {
-            if (d.nodeType === 'floating') return 0.8;
+            if (d.nodeType === 'floating') return 0.6;
             if (d.nodeType === 'peer') return 0.9;
             return 1;
           });
+          
+        // 如果是漂浮节点，隐藏文本
+        if (d.nodeType === 'floating') {
+          d3.select(this.parentNode)
+            .select('text')
+            .text('')
+            .transition()
+            .duration(200)
+            .attr('opacity', 0);
+        }
       });
 
     // 添加点击波纹效果
@@ -465,14 +523,24 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
 
     // 添加文本标签
     node.append('text')
-      .text(d => d.nodeType === 'floating' ? '' : d.id)  // 游离节点默认不显示文本
+      .text(d => {
+        // 对于漂浮节点，只在悬停时显示文本
+        if (d.nodeType === 'floating') {
+          return '';  // 默认不显示文本
+        }
+        return d.id;
+      })
       .attr('x', d => d.nodeType === 'center' ? 0 : 30)
       .attr('y', d => d.nodeType === 'center' ? 0 : 4)
       .attr('dominant-baseline', d => d.nodeType === 'center' ? 'middle' : 'auto')
       .attr('text-anchor', d => d.nodeType === 'center' ? 'middle' : 'start')
       .attr('font-size', d => d.nodeType === 'center' ? '14px' : '12px')
       .attr('fill', getTextColor)
-      .attr('opacity', d => d.nodeType === 'floating' ? 0 : 0.8);
+      .attr('opacity', d => {
+        // 漂浮节点文本默认透明
+        if (d.nodeType === 'floating') return 0;
+        return 0.8;
+      });
 
     // 更新位置
     simulation.on('tick', () => {
@@ -529,8 +597,16 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       .style('opacity', 0)
       .transition()
       .duration(800)
-      .delay((d, i) => i * 50)  // 错开每个节点的出现时间
-      .style('opacity', 1);
+      .delay((d, i) => {
+        // 让漂浮节点最后出现
+        if (d.nodeType === 'floating') return 1000 + i * 50;
+        return i * 50;
+      })
+      .style('opacity', d => {
+        if (d.nodeType === 'floating') return 0.6;
+        if (d.nodeType === 'peer') return 0.9;
+        return 1;
+      });
 
     // 添加调试日志
     console.log('Nodes:', data.data.nodes);
@@ -575,24 +651,37 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
   }
 
   return (
-    <div 
-      ref={containerRef} 
-      style={{ 
-        width: '100%', 
-        height: 'calc(100vh - 6rem)',
-        position: 'relative',
-        background: 'transparent',
-      }}
-    >
-      <svg 
-        ref={svgRef}
+    <div className="relative">
+      <div 
+        ref={containerRef} 
         style={{ 
           width: '100%', 
-          height: '100%',
-          display: 'block',
+          height: 'calc(100vh - 6rem)',
+          position: 'relative',
           background: 'transparent',
-        }} 
-      />
+        }}
+      >
+        <svg 
+          ref={svgRef}
+          style={{ 
+            width: '100%', 
+            height: '100%',
+            display: 'block',
+            background: 'transparent',
+          }} 
+        />
+      </div>
+
+      <div className="absolute top-4 right-4">
+        <Button
+          onClick={() => setShowAlgorithmExplain(!showAlgorithmExplain)}
+          variant="outline"
+          className="bg-white shadow-sm hover:bg-gray-50"
+        >
+          {showAlgorithmExplain ? '隐藏算法解释' : '查看算法解释'}
+        </Button>
+      </div>
+
       {selectedNode && data?.data?.center && selectedNode.id !== data.data.center.id && (
         <div
           className="absolute"
@@ -629,6 +718,14 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {showAlgorithmExplain && (
+        <div className="mt-6 mx-auto max-w-5xl">
+          <AlgorithmExplain 
+            type={type === 'repo' ? 'user-repo' : 'user-user'}
+          />
         </div>
       )}
     </div>
