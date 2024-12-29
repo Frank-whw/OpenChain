@@ -252,26 +252,36 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         .id(d => d.id)
         .distance(link => {
           const similarity = link.value || 0;
-          // 连接线距离根据相似度有更大的变化范围
-          const minDistance = 100;   // 最小距离
-          const maxDistance = 400;   // 增加最大距离
-          // 使用四次方来增加距离差异
+          // 连接线距离根据相似度和节点类型调整
+          const minDistance = 100;
+          const maxDistance = 400;
+          const source = link.source as Node;
+          const target = link.target as Node;
+          
+          // 如果是导师节点，增加距离以避免聚集
+          if (source.nodeType === 'mentor' || target.nodeType === 'mentor') {
+            return minDistance + Math.pow(1 - similarity, 3) * (maxDistance - minDistance) + 50;
+          }
+          
           return minDistance + Math.pow(1 - similarity, 4) * (maxDistance - minDistance);
         }))
       .force('charge', d3.forceManyBody()
         .strength((d: any) => {
           const node = d as Node;
-          if (node.nodeType === 'center') return -2000;  // 保持中心节点斥力
-          if (node.nodeType === 'mentor') return -1000;  // 保持导师节点斥力
-          if (node.nodeType === 'peer') return -800;     // 保持同伴节点斥力
-          if (node.nodeType === 'floating') return -400; // 保持漂浮节点斥力
+          if (node.nodeType === 'center') return -2000;
+          if (node.nodeType === 'mentor') return -1200;  // 增加导师节点的斥力
+          if (node.nodeType === 'peer') return -800;
+          if (node.nodeType === 'floating') return -400;
           return -400;
         }))
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide()
-        .radius(d => getNodeRadius(d) + 8)
+        .radius(d => {
+          // 增加导师节点的碰撞半径
+          const baseRadius = getNodeRadius(d);
+          return d.nodeType === 'mentor' ? baseRadius + 12 : baseRadius + 8;
+        })
         .strength(0.8))
-      // 修改径向力配置
       .force('radial', d3.forceRadial(
         (d: Node) => {
           if (d.nodeType === 'center') return 0;
@@ -279,22 +289,18 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
           const similarity = d.similarity || 0;
           
           if (d.nodeType === 'floating') {
-            // 漂浮节点距离差异更大
-            const baseDistance = 400;  // 增加基础距离
-            // 使用四次方函数增加距离差异
-            return baseDistance + Math.pow(1 - similarity, 4) * 300;  // 400-700范围
+            const baseDistance = 400;
+            return baseDistance + Math.pow(1 - similarity, 4) * 300;
           }
           
-          // 导师和同伴节点的距离差异更明显
+          // 调整导师和同伴节点的径向距离
           const baseDistance = 150;
-          const maxDistance = 400;   // 增加最大距离
+          const maxDistance = 400;
           
-          // 根据节点类型和相似度计算距离
           if (d.nodeType === 'mentor') {
-            // 导师节点距离范围：150-400
-            return baseDistance + Math.pow(1 - similarity, 3) * (maxDistance - baseDistance);
+            // 导师节点使用更大的基础距离和更强的相似度影响
+            return (baseDistance + 30) + Math.pow(1 - similarity, 2) * (maxDistance - baseDistance);
           } else {
-            // 同伴节点距离范围：200-450
             return (baseDistance + 50) + Math.pow(1 - similarity, 3) * (maxDistance - baseDistance);
           }
         },
@@ -304,18 +310,16 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         // 增加径向力的差异
         if (d.nodeType === 'floating') {
           const similarity = d.similarity || 0;
-          // 相似度越低，径向力越强
-          return 0.1 + Math.pow(1 - similarity, 2) * 0.15;  // 0.1-0.25范围
+          return 0.1 + Math.pow(1 - similarity, 2) * 0.15;
         }
         if (d.nodeType === 'mentor') {
           const similarity = d.similarity || 0;
-          // 相似度越高，径向力越强
-          return 0.3 + Math.pow(similarity, 2) * 0.3;  // 0.3-0.6范围
+          // 增加导师节点的径向力，使其分布更均匀
+          return 0.4 + Math.pow(similarity, 2) * 0.3;
         }
         if (d.nodeType === 'peer') {
           const similarity = d.similarity || 0;
-          // 相似度越高，径向力越强
-          return 0.2 + Math.pow(similarity, 2) * 0.25;  // 0.2-0.45范围
+          return 0.2 + Math.pow(similarity, 2) * 0.25;
         }
         return 0.1;
       }));

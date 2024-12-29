@@ -13,12 +13,12 @@ const AlgorithmExplain: React.FC<AlgorithmExplainProps> = ({ type }) => {
   const explanationTypes = [
     { 
       id: 'scale', 
-      label: '规模指数', 
+      label: '规模指标', 
       mode: type === 'user-repo' ? 'repo' : 'user'
     },
     { 
       id: 'similarity', 
-      label: '相似度', 
+      label: '相似度指标', 
       mode: type
     },
     { 
@@ -33,7 +33,7 @@ const AlgorithmExplain: React.FC<AlgorithmExplainProps> = ({ type }) => {
     },
     { 
       id: 'similarity_algo', 
-      label: '相似度算法', 
+      label: '相似度计算算法', 
       mode: type
     },
     { 
