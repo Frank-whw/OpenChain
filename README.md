@@ -132,13 +132,54 @@ Visit http://localhost:3000 in your browser
    Search: Repository
    Input: torvalds
    ```
+![User-Repo Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301616905.png)
 
-2. Repository->User Analysis
+Click on any node except the center node to generate large model analysis results
+![AI Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301617349.png)
+
+2. User->User Analysis
+   ```
+   Type: User
+   Search: User
+   Input: Frank-whw
+   ```
+![User-User Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301618504.png)
+
+3. Repository->User Analysis
    ```
    Type: Repository
    Search: User
-   Input: microsoft/vscode
+   Input: Frank-whw/OpenChain
    ```
+![Repo-User Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301621838.png)
+
+4. Repository->Repository Analysis
+   ```
+   Type: Repository
+   Search: Repository
+   Input: Frank-whw/OpenChain
+   ```
+![Repo-Repo Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301619762.png)
+
+### Documentation System
+The system provides comprehensive documentation including:
+1. Algorithm Explanation
+   - User similarity calculation methods
+   - Repository similarity calculation methods
+   - Recommendation process details
+   - Node type classification rules
+
+2. Interactive Features
+   - Node hover effects with detailed information
+   - Click interaction for AI analysis
+   - Zoom and pan capabilities
+   - Dynamic force-directed layout
+
+3. Visual Elements
+   - Color coding for different node types
+   - Size variation based on importance
+   - Connection strength visualization
+   - Interactive tooltips
 
 ## Recommendation Algorithm
 
