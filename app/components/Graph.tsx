@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { message } from 'antd';
-import AlgorithmExplain from './AlgorithmExplain';
+// import AlgorithmExplain from './AlgorithmExplain';
 import { Button } from './ui/button';
 
 export interface Node extends d3.SimulationNodeDatum {
@@ -676,7 +676,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         />
       </div>
 
-      <div className="absolute top-4 right-4">
+      {/* <div className="absolute top-4 right-4">
         <Button
           onClick={() => setShowAlgorithmExplain(!showAlgorithmExplain)}
           variant="outline"
@@ -684,7 +684,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
         >
           {showAlgorithmExplain ? '隐藏算法解释' : '查看算法解释'}
         </Button>
-      </div>
+      </div> */}
 
       {selectedNode && data?.data?.center && selectedNode.id !== data.data.center.id && (
         <div

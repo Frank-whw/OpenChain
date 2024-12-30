@@ -64,11 +64,11 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#F3F4F6]">
       <div className="mx-auto py-8 px-4">
-        <div className="bg-white rounded-2xl shadow-lg p-6 max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-lg p-6  mx-auto">
           {!showDocs ? (
             <>
               <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold">OpenChain</h1>
+                <h1 className="text-2xl font-bold text-center ml-[40vw]">OpenChain</h1>
                 <Button
                   onClick={() => setShowDocs(true)}
                   variant="outline"
@@ -78,7 +78,7 @@ export default function Home() {
                 </Button>
               </div>
               
-              <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4 max-w-4xl mx-auto">
                 <span className="font-bold text-gray-700">GitHub</span>
                 
                 <div className="flex gap-3">
@@ -139,8 +139,8 @@ export default function Home() {
             </>
           ) : (
             <>
-              <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold">OpenChain 文档</h1>
+              <div className="flex justify-between items-center mb-8 max-w-4xl mx-auto">
+                <h1 className="text-2xl font-bold ml-[20vw]">OpenChain 文档</h1>
                 <Button
                   onClick={() => setShowDocs(false)}
                   variant="outline"
