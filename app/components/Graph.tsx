@@ -55,7 +55,7 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
   const [error, setError] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [showAlgorithmExplain, setShowAlgorithmExplain] = useState(false);
+  // const [showAlgorithmExplain, setShowAlgorithmExplain] = useState(false);
 
   // 获取错误提示信息
   const getErrorMessage = (error_type: string, message: string) => {
@@ -100,8 +100,8 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
       const result = await response.json();
       console.log('Analysis response:', result);
       
-      if (result.success && result.data) {
-        setAiAnalysis(result.data.analysis);
+      if (result.status === 'success' && result.analysis) {
+        setAiAnalysis(result.analysis);
       } else {
         // 获取错误信息
         const errorInfo = getErrorMessage(result.error_type || 'INTERNAL_ERROR', result.message || '分析失败，请稍后重试');
@@ -722,14 +722,6 @@ const Graph: React.FC<GraphProps> = ({ data, onNodeClick, selectedNode, type }) 
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {showAlgorithmExplain && (
-        <div className="mt-6 mx-auto max-w-5xl">
-          <AlgorithmExplain 
-            type={type === 'repo' ? 'user-repo' : 'user-user'}
-          />
         </div>
       )}
     </div>
