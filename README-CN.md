@@ -1,6 +1,7 @@
-# OpenChain - 开源社区关系可视化系统
+# OpenChain
 
-![License](https://img.shields.io/badge/License-MIT-blue)[![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)[![Python Version](https://img.shields.io/badge/python-%3E%3D3.8-red)](https://www.python.org/)[![EN](https://img.shields.io/badge/English-README.md-blue)](README.md)[![Language](https://img.shields.io/badge/Language-简体中文-brightgreen)](README-CN.md)
+[![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)[![Python Version](https://img.shields.io/badge/python-%3E%3D3.8-red)](https://www.python.org/)[![EN](https://img.shields.io/badge/English-README.md-blue)](README.md)
+![b111bf2b96bf376180b7fcd1dd3ede8.png](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412302221674.png)
 
 ## 目录
 - [项目背景](#项目背景)

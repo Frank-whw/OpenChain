@@ -1,6 +1,7 @@
-# OpenChain - Open Source Community Relationship Visualization System
+# OpenChain
 
-![License](https://img.shields.io/badge/License-MIT-blue)[![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)[![Python Version](https://img.shields.io/badge/python-%3E%3D3.8-red)](https://www.python.org/)[![CN](https://img.shields.io/badge/简体中文-README--CN.md-blue)](README-CN.md)[![Language](https://img.shields.io/badge/Language-English-brightgreen)](README.md)
+[![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)[![Python Version](https://img.shields.io/badge/python-%3E%3D3.8-red)](https://www.python.org/)[![CN](https://img.shields.io/badge/简体中文-README--CN.md-blue)](README-CN.md)
+![b111bf2b96bf376180b7fcd1dd3ede8.png](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412302221674.png)
 
 ## Table of Contents
 - [Background](#background)
