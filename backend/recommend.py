@@ -1686,7 +1686,7 @@ def analyze_with_llm(node_a: str, node_b: str) -> str:
     }
 
     headers = {
-        "Authorization": "Bearer MBxygdMlrkwHhPfBBwrJ:beWImlkiOrRHkYaLENCz"
+        "Authorization": "Bearer csmIvPnqgZoYcHKbHket:GUJDNvKHkuHQotLXNAqv"
     }
 
     try:
