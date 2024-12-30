@@ -1,10 +1,6 @@
 # OpenChain - Open Source Community Relationship Visualization System
 
-![License](https://img.shields.io/badge/License-MIT-blue)
-[![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
-[![Python Version](https://img.shields.io/badge/python-%3E%3D3.8-red)](https://www.python.org/)
-[![CN](https://img.shields.io/badge/简体中文-README--CN.md-blue)](README-CN.md)
-![Language](https://img.shields.io/badge/Language-English-brightgreen)
+![License](https://img.shields.io/badge/License-MIT-blue)[![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)[![Python Version](https://img.shields.io/badge/python-%3E%3D3.8-red)](https://www.python.org/)[![CN](https://img.shields.io/badge/简体中文-README--CN.md-blue)](README-CN.md)[![Language](https://img.shields.io/badge/Language-English-brightgreen)](README.md)
 
 ## Table of Contents
 - [Background](#background)
@@ -13,6 +9,7 @@
 - [Technical Architecture](#technical-architecture)
 - [Installation](#installation)
 - [Usage Guide](#usage-guide)
+- [Documentation System](#documentation-system)
 - [Recommendation Algorithm](#recommendation-algorithm)
 - [Development Plan](#development-plan)
 - [Contributing](#contributing)
@@ -29,22 +26,22 @@ OpenChain builds a comprehensive open source community relationship analysis pla
 - Technology ecosystem development trend prediction
 
 ## Features
-1. Multi-dimensional Relationship Analysis
+1. **Multi-dimensional Relationship Analysis**
    - User Relationships: Identify developers with similar tech stacks
    - Project Relationships: Explore project dependencies and technical connections
    - User-Project Relationships: Precise contribution opportunity recommendations
 
-2. Intelligent Recommendation System
+2. **Intelligent Recommendation System**
    - Project recommendations based on user tech stack
    - Contributor recommendations based on project characteristics
    - Multi-dimensional similarity calculation and matching
 
-3. Large Model Analysis
+3. **Large Model Analysis**
    - Deep analysis using Spark Large Language Model
    - Relationship network interpretation
    - Personalized collaboration suggestion generation
 
-4. Interactive Visualization
+4. **Interactive Visualization**
    - Force-directed graph for relationship network display
    - Node influence visualization
    - Dynamic association strength display
@@ -126,60 +123,63 @@ Visit http://localhost:3000 in your browser
 - Node detail analysis
 
 ### Usage Examples
-1. User->Repository Analysis
-   ```
-   Type: User
-   Search: Repository
-   Input: torvalds
-   ```
+
+#### 1. User->Repository Analysis
+```
+Type: User
+Search: Repository
+Input: Frank-whw
+```
 ![User-Repo Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301616905.png)
 
-Click on any node except the center node to generate large model analysis results
+> Click on any node except the center node to generate large model analysis results
+
 ![AI Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301617349.png)
 
-2. User->User Analysis
-   ```
-   Type: User
-   Search: User
-   Input: Frank-whw
-   ```
+#### 2. User->User Analysis
+```
+Type: User
+Search: User
+Input: Frank-whw
+```
 ![User-User Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301618504.png)
 
-3. Repository->User Analysis
-   ```
-   Type: Repository
-   Search: User
-   Input: Frank-whw/OpenChain
-   ```
+#### 3. Repository->User Analysis
+```
+Type: Repository
+Search: User
+Input: Frank-whw/OpenChain
+```
 ![Repo-User Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301621838.png)
 
-4. Repository->Repository Analysis
-   ```
-   Type: Repository
-   Search: Repository
-   Input: Frank-whw/OpenChain
-   ```
+#### 4. Repository->Repository Analysis
+```
+Type: Repository
+Search: Repository
+Input: Frank-whw/OpenChain
+```
 ![Repo-Repo Analysis](https://raw.githubusercontent.com/Frank-whw/img/main/blog/202412301619762.png)
 
-### Documentation System
+## Documentation System
 The system provides comprehensive documentation including:
-1. Algorithm Explanation
-   - User similarity calculation methods
-   - Repository similarity calculation methods
-   - Recommendation process details
-   - Node type classification rules
 
-2. Interactive Features
-   - Node hover effects with detailed information
-   - Click interaction for AI analysis
-   - Zoom and pan capabilities
-   - Dynamic force-directed layout
+### 1. Algorithm Explanation
+- User similarity calculation methods
+- Repository similarity calculation methods
+- Recommendation process details
+- Node type classification rules
 
-3. Visual Elements
-   - Color coding for different node types
-   - Size variation based on importance
-   - Connection strength visualization
-   - Interactive tooltips
+### 2. Interactive Features
+- Node hover effects with detailed information
+- Click interaction for AI analysis
+- Zoom and pan capabilities
+- Dynamic force-directed layout
+
+### 3. Visual Elements
+- Color coding for different node types
+- Size variation based on importance
+- Connection strength visualization
+- Interactive tooltips
 
 ## Recommendation Algorithm
 
@@ -199,23 +199,23 @@ The system uses multi-dimensional similarity calculation methods:
 - Functional description similarity
 
 ### Recommendation Process
-1. Data Collection
+1. **Data Collection**
    - GitHub API data retrieval
    - OpenDigger metrics analysis
    - User behavior data mining
 
-2. Feature Extraction
+2. **Feature Extraction**
    - Language preference analysis
    - Topic tag extraction
    - Activity level calculation
    - Scale evaluation
 
-3. Similarity Calculation
+3. **Similarity Calculation**
    - Feature vector construction
    - Weighted similarity calculation
    - Normalization processing
 
-4. Result Optimization
+4. **Result Optimization**
    - Similarity ranking
    - Activity level weighting
    - TOP-N filtering
