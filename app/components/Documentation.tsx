@@ -79,11 +79,7 @@ const Documentation: React.FC = () => {
               items={[
                 { id: 'user-user-similarity', label: '用户间相似度' },
                 { id: 'user-repo-similarity', label: '用户-仓库相似度' },
-<<<<<<< HEAD
                 { id: 'repo-repo-similarity', label: '仓库间相似度' },
-=======
-                { id: 'repo-repo-similarity', label: '仓库间相似度' }
->>>>>>> 4318ae00db5f4e916d049275d319ee9b08a815c4
               ]}
               activeSection={activeSection}
               scrollToSection={scrollToSection}
@@ -360,78 +356,6 @@ Score = OR_score × 0.4 + SI × 0.3 + RQ × 0.15 + AS × 0.15`}
             title="仓库间相似度指标"
             expanded={expandedSections['repo-repo-similarity']}
             toggleSection={() => toggleSection('repo-repo-similarity')}
-<<<<<<< HEAD
-=======
-            filterContent={filterContent}
-          >
-            <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">指标构成</h3>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>语言相似度 (30%)
-                  <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>衡量两个仓库在编程语言上的匹配程度</li>
-                    <li>基于主要开发语言的完全匹配</li>
-                    <li>值域：{'{0,1}'}，1表示使用相同语言</li>
-                  </ul>
-                </li>
-                <li>主题相似度 (40%)
-                  <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>衡量两个仓库在主题标签上的重合度</li>
-                    <li>基于主题标签集合的Jaccard系数</li>
-                    <li>值域：[0,1]，1表示主题完全重合</li>
-                  </ul>
-                </li>
-                <li>规模相似度 (30%)
-                  <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>衡量两个仓库在代码规模上的接近程度</li>
-                    <li>基于仓库size的相对差异</li>
-                    <li>值域：[0,1]，1表示规模最接近</li>
-                  </ul>
-                </li>
-              </ul>
-            </div>
-
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-8">
-              <h4 className="text-blue-600 font-semibold mb-2">指标特性</h4>
-              <ul className="list-disc pl-4 space-y-1 text-blue-800">
-                <li>对称性：sim(R₁,R₂) = sim(R₂,R₁)</li>
-                <li>归一化：最终得分在[0,1]区间</li>
-                <li>离散性：语言相似度为离散值{'{0,1}'}</li>
-              </ul>
-            </div>
-
-            <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">计算公式</h3>
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm">
-                <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`Similarity = 0.3 × language_similarity + 
-                           0.4 × topic_similarity + 
-                           0.3 × size_similarity
-
-其中：
-• language_similarity = 1 if lang₁ = lang₂ else 0
-• topic_similarity = |T₁ ∩ T₂| / |T₁ ∪ T₂|
-• size_similarity = 1 - |size₁ - size₂| / max(size₁ + size₂, 1)`}
-                </SyntaxHighlighter>
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">应用场景</h3>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>相似项目发现：寻找类似的开源项目</li>
-                <li>竞品分析：分析同类型项目</li>
-                <li>技术生态：构建技术关联网络</li>
-              </ul>
-            </div>
-          </ContentSection>
-
-          <ContentSection
-            id="recommendation-pool"
-            title="推荐池构建算法"
-            expanded={expandedSections['recommendation-pool']}
-            toggleSection={() => toggleSection('recommendation-pool')}
->>>>>>> 4318ae00db5f4e916d049275d319ee9b08a815c4
             filterContent={filterContent}
           >
             <div className="mb-8">
@@ -593,107 +517,16 @@ Score = OR_score × 0.4 + SI × 0.3 + RQ × 0.15 + AS × 0.15`}
           </ContentSection>
 
           <ContentSection
-<<<<<<< HEAD
             id="repo-recommendation"
             title="仓库推荐算法实现"
             expanded={expandedSections['repo-recommendation']}
             toggleSection={() => toggleSection('repo-recommendation')}
-=======
-            id="node-classification"
-            title="节点分类算法"
-            expanded={expandedSections['node-classification']}
-            toggleSection={() => toggleSection('node-classification')}
-            filterContent={filterContent}
-          >
-            <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">用户节点分类</h3>
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
-                <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`1. 节点类型定义：
-• Mentor节点 (6-10个)
-  - 条件：scale ≥ 33
-  - 特点：经验丰富的高级开发者
-  - 目的：提供指导和学习机会
-
-• Peer节点 (9-15个)
-  - 条件：25 ≤ scale < 33
-  - 特点：技术水平相近的开发者
-  - 目的：促进技术交流与协作
-
-• Floating节点 (10-20个)
-  - 条件：scale < 25
-  - 特点：新兴或潜在的合作者
-  - 目的：扩展社交网络
-
-2. 节点分配算法：
-• 初始分类：按scale值分组
-• 数量控制：保持各类型节点数量在指定范围
-• 节点筛选：按相似度降序排序并选取`}
-                </SyntaxHighlighter>
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">仓库节点分类</h3>
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
-                <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`1. 节点类型定义：
-• Mentor节点 (3-5个)
-  - 条件：scale ≥ 33
-  - 特点：成熟的大型开源项目
-  - 目的：深入学习的目标
-
-• Peer节点 (4-7个)
-  - 条件：25 ≤ scale < 33
-  - 特点：适合贡献的中型项目
-  - 目的：参与开源实践
-
-• Floating节点 (6-12个)
-  - 条件：scale < 25
-  - 特点：新兴或小型项目
-  - 目的：发掘潜在机会
-
-2. 节点分配算法：
-• 初始分类：按scale值分组
-• 数量控制：保持各类型节点数量在指定范围
-• 节点筛选：按相似度降序排序并选取`}
-                </SyntaxHighlighter>
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">节点属性设置</h3>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>id: 用户登录名或仓库全名</li>
-                <li>type: mentor/peer/floating</li>
-                <li>weight: 基于相似度计算</li>
-                <li>size: 基于规模指数计算</li>
-              </ul>
-            </div>
-
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-8">
-              <h4 className="text-blue-600 font-semibold mb-2">分布优化</h4>
-              <ul className="list-disc pl-4 space-y-1 text-blue-800">
-                <li>层级平衡：确保各层级节点数量合理分布</li>
-                <li>类型平衡：维持不同类型节点的比例</li>
-                <li>多样性：保证推荐结果的多样化</li>
-              </ul>
-            </div>
-          </ContentSection>
-
-          <ContentSection
-            id="similarity-calculation"
-            title="相似度计算算法"
-            expanded={expandedSections['similarity-calculation']}
-            toggleSection={() => toggleSection('similarity-calculation')}
->>>>>>> 4318ae00db5f4e916d049275d319ee9b08a815c4
             filterContent={filterContent}
           >
             <div className="mb-8">
               <h3 className="text-2xl font-semibold mb-4">推荐池构建</h3>
               <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
                 <SyntaxHighlighter language="python" style={tomorrow}>
-<<<<<<< HEAD
                   {`规模计算：
 • N = base_size + scale_factor
   - base_size = 60
@@ -711,29 +544,6 @@ Score = OR_score × 0.4 + SI × 0.3 + RQ × 0.15 + AS × 0.15`}
     · P₂ = search_repos(topics=T)
   - P₃ (20%)：趋势补充
     · P₃ = get_trending_repos()`}
-=======
-                  {`1. 语言偏好相似度计算 (40%):
-• 获取所有语言列表 L = {l₁, ..., lₙ}
-• 计算每种语言的代码量占比向量：
-  v₁ = (p₁₁, ..., p₁ₙ), v₂ = (p₂₁, ..., p₂ₙ)
-• 计算余弦相似度：
-  LS = cos(v₁,v₂) = v₁·v₂ / (||v₁|| ||v₂||)
-
-2. 主题兴趣相似度计算 (40%):
-• 构建主题集合 T₁, T₂
-• 计算Jaccard系数：
-  TS = |T₁ ∩ T₂| / |T₁ ∪ T₂|
-
-3. 活跃度相似度计算 (20%):
-• 特征转换：
-  x' = ln(x + 1) / ln(base)  # base∈{10⁴,10³,10²}
-• 差异度计算：
-  diff = 0.4×|f₁-f₂| + 0.3×|g₁-g₂| + 0.3×|r₁-r₂|
-  AS = 1 - min(diff, 1)
-
-最终相似度：
-Similarity = 0.4×LS + 0.4×TS + 0.2×AS`}
->>>>>>> 4318ae00db5f4e916d049275d319ee9b08a815c4
                 </SyntaxHighlighter>
               </div>
             </div>
@@ -742,42 +552,15 @@ Similarity = 0.4×LS + 0.4×TS + 0.2×AS`}
               <h3 className="text-2xl font-semibold mb-4">相似度计算</h3>
               <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
                 <SyntaxHighlighter language="python" style={tomorrow}>
-<<<<<<< HEAD
                   {`对于每个候选仓库 r ∈ P：
 • sim(user, r) = compute_repo_similarity(user, r)
 • 按相似度降序排序
 • 选取前 N 个仓库作为推荐集 R`}
-=======
-                  {`1. 语言匹配度计算 (40%):
-• 获取用户语言使用概率分布 P(L)
-• 获取仓库主要语言 L_main
-• 计算匹配度：
-  LM = P(L_main)
-
-2. 主题匹配度计算 (40%):
-• 收集用户兴趣主题集合 T_u
-• 获取仓库主题标签集合 T_r
-• 计算Jaccard相似度：
-  TM = |T_u ∩ T_r| / |T_u ∪ T_r|
-
-3. 规模时效性计算 (20%):
-• 规模评估：
-  star_score = ln(stars + 1) / ln(10⁴)
-  fork_score = ln(forks + 1) / ln(10³)
-  scale_score = 0.7×star_score + 0.3×fork_score
-• 时效性调整：
-  factor = 1.2 if active else 0.8
-  RS = min(1.0, scale_score × factor)
-
-最终相似度：
-Similarity = 0.4×LM + 0.4×TM + 0.2×RS`}
->>>>>>> 4318ae00db5f4e916d049275d319ee9b08a815c4
                 </SyntaxHighlighter>
               </div>
             </div>
 
             <div className="mb-8">
-<<<<<<< HEAD
               <h3 className="text-2xl font-semibold mb-4">节点分类</h3>
               <ul className="list-disc pl-6 space-y-2">
                 <li>规模分类
@@ -793,48 +576,6 @@ Similarity = 0.4×LM + 0.4×TM + 0.2×RS`}
                     <li>新兴项目：近期快速增长的项目</li>
                   </ul>
                 </li>
-=======
-              <h3 className="text-2xl font-semibold mb-4">仓库-仓库相似度计算</h3>
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
-                <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`1. 语言相似度计算 (40%):
-• 获取语言使用比例向量：
-  v₁ = (l₁₁, ..., l₁ₙ), v₂ = (l₂₁, ..., l₂ₙ)
-• 计算余弦相似度：
-  LS = cos(v₁,v₂) = v₁·v₂ / (||v₁|| ||v₂||)
-
-2. 主题相似度计算 (30%):
-• 获取主题标签集合 T₁, T₂
-• 计算Jaccard相似度：
-  TS = |T₁ ∩ T₂| / |T₁ ∪ T₂|
-
-3. 贡献者重叠度 (20%):
-• 获取贡献者集合 C₁, C₂
-• 计算Jaccard相似度：
-  CS = |C₁ ∩ C₂| / |C₁ ∪ C₂|
-
-4. 规模时效性相似度 (10%):
-• 规模差异：
-  star_diff = |ln(s₁ + 1) - ln(s₂ + 1)| / ln(10⁴)
-  fork_diff = |ln(f₁ + 1) - ln(f₂ + 1)| / ln(10³)
-• 时效性差异：
-  time_diff = |t₁ - t₂| / (365 days)
-• 综合计算：
-  RS = 1 - min(0.6×star_diff + 0.3×fork_diff + 0.1×time_diff, 1)
-
-最终相似度：
-Similarity = 0.4×LS + 0.3×TS + 0.2×CS + 0.1×RS`}
-                </SyntaxHighlighter>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-8">
-              <h4 className="text-blue-600 font-semibold mb-2">注意事项</h4>
-              <ul className="list-disc pl-4 space-y-1 text-blue-800">
-                <li>所有相似度计算结果均在[0,1]区间内</li>
-                <li>可根据具体应用场景调整各部分的权重</li>
-                <li>对于大规模计算，考虑使用近似算法提高效率</li>
->>>>>>> 4318ae00db5f4e916d049275d319ee9b08a815c4
               </ul>
             </div>
 
