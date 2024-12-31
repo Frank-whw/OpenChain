@@ -79,6 +79,7 @@ const Documentation: React.FC = () => {
               items={[
                 { id: 'user-user-similarity', label: '用户间相似度' },
                 { id: 'user-repo-similarity', label: '用户-仓库相似度' },
+                { id: 'repo-repo-similarity', label: '仓库间相似度' },
               ]}
               activeSection={activeSection}
               scrollToSection={scrollToSection}
@@ -87,10 +88,8 @@ const Documentation: React.FC = () => {
             <SidebarSection
               title="推荐算法"
               items={[
-                { id: 'recommendation-pool', label: '推荐池构建' },
-                { id: 'node-classification', label: '节点分类' },
-                { id: 'similarity-calculation', label: '相似度计算' },
-                { id: 'recommendation-implementation', label: '推荐实现' },
+                { id: 'user-recommendation', label: '用户推荐算法' },
+                { id: 'repo-recommendation', label: '仓库推荐算法' },
               ]}
               activeSection={activeSection}
               scrollToSection={scrollToSection}
@@ -353,86 +352,164 @@ Score = OR_score × 0.4 + SI × 0.3 + RQ × 0.15 + AS × 0.15`}
           </ContentSection>
 
           <ContentSection
-            id="recommendation-pool"
-            title="推荐池构建算法"
-            expanded={expandedSections['recommendation-pool']}
-            toggleSection={() => toggleSection('recommendation-pool')}
+            id="repo-repo-similarity"
+            title="仓库间相似度指标"
+            expanded={expandedSections['repo-repo-similarity']}
+            toggleSection={() => toggleSection('repo-repo-similarity')}
             filterContent={filterContent}
           >
             <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">用户推荐池</h3>
+              <h3 className="text-2xl font-semibold mb-4">指标构成</h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <Tooltip content="比较两个仓库的主要开发语言，判断技术栈的相似程度">
+                    语言相似度 (30%)
+                  </Tooltip>
+                  <ul className="list-circle pl-6 mt-2 space-y-1">
+                    <li>衡量仓库主要开发语言的匹配程度</li>
+                    <li>基于语言使用统计的相似度计算</li>
+                    <li>值域：[0,1]，1表示完全匹配</li>
+                  </ul>
+                </li>
+                <li>
+                  <Tooltip content="分析仓库的主题标签重叠情况，反映功能和领域的相似性">
+                    主题相似度 (40%)
+                  </Tooltip>
+                  <ul className="list-circle pl-6 mt-2 space-y-1">
+                    <li>衡量仓库主题标签的重叠度</li>
+                    <li>基于主题标签的集合运算</li>
+                    <li>值域：[0,1]，1表示完全重合</li>
+                  </ul>
+                </li>
+                <li>
+                  <Tooltip content="比较仓库的规模大小，包括代码量、star数、fork数等指标">
+                    规模相似度 (30%)
+                  </Tooltip>
+                  <ul className="list-circle pl-6 mt-2 space-y-1">
+                    <li>衡量仓库规模大小的接近程度</li>
+                    <li>考虑代码量、star数、fork数等维度</li>
+                    <li>值域：[0,1]，1表示规模最接近</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-8">
+              <h4 className="text-blue-600 font-semibold mb-2">指标特性</h4>
+              <ul className="list-disc pl-4 space-y-1 text-blue-800">
+                <li>
+                  <Tooltip content="A仓库对B仓库的相似度等于B仓库对A仓库的相似度">
+                    对称性：相似度计算具有对称性
+                  </Tooltip>
+                </li>
+                <li>
+                  <Tooltip content="所有相似度计算结果都会被归一化到0到1之间">
+                    归一化：最终得分在[0,1]区间
+                  </Tooltip>
+                </li>
+              </ul>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-2xl font-semibold mb-4">应用场景</h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <Tooltip content="帮助用户发现与当前关注仓库相似的其他项目">
+                    相似项目发现
+                  </Tooltip>
+                </li>
+                <li>
+                  <Tooltip content="辅助开发者在相似技术栈间进行迁移和学习">
+                    技术栈迁移
+                  </Tooltip>
+                </li>
+                <li>
+                  <Tooltip content="发现和分析同领域的竞争项目">
+                    竞品分析
+                  </Tooltip>
+                </li>
+              </ul>
+            </div>
+          </ContentSection>
+
+          <ContentSection
+            id="user-recommendation"
+            title="用户推荐算法实现"
+            expanded={expandedSections['user-recommendation']}
+            toggleSection={() => toggleSection('user-recommendation')}
+            filterContent={filterContent}
+          >
+            <div className="mb-8">
+              <h3 className="text-2xl font-semibold mb-4">推荐池构建</h3>
               <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
                 <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`池大小计算：
-          • base_size = 100  # 基础池大小
-          • scale_factor = (scale - 20) × 5  # 规模因子
-          • pool_size = base_size + scale_factor
-          • 最终大小范围：[100, 200]
+                  {`规模计算：
+• N = base_size + scale_factor
+  - base_size = 60
+  - scale_factor = (scale - 20) × 2
+  - N ∈ [60, 100]
 
-          动态调整：
-          • 初级用户 (scale < 25)：保持基础大小 100
-          • 中级用户 (25 ≤ scale < 30)：增加 25-50
-          • 高级用户 (30 ≤ scale < 35)：增加 50-75
-          • 专家用户 (scale ≥ 35)：增加 75-100`}
+候选集构建：
+• P = P₁ ∪ P₂ ∪ P₃
+  - P₁ (50%)：相似用户
+    · S = get_similar_users(user.followers)
+    · L = get_top_users(user.languages)
+    · P₁ = S ∪ L
+  - P₂ (30%)：兴趣相关
+    · T = get_user_topics(user)
+    · P₂ = search_users(topics=T)
+  - P₃ (20%)：趋势补充
+    · P₃ = get_trending_users()`}
                 </SyntaxHighlighter>
               </div>
+            </div>
 
-              <h4 className="text-xl font-semibold mb-3">候选人来源</h4>
+            <div className="mb-8">
+              <h3 className="text-2xl font-semibold mb-4">相似度计算</h3>
+              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
+                <SyntaxHighlighter language="python" style={tomorrow}>
+                  {`对于每个候选用户 u ∈ P：
+• sim(user, u) = compute_similarity(user, u)
+• 按相似度降序排序
+• 选取前 N 个用户作为推荐集 R`}
+                </SyntaxHighlighter>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-2xl font-semibold mb-4">节点分类</h3>
               <ul className="list-disc pl-6 space-y-2">
-                <li>一级候选（权重：0.5）
+                <li>规模分类
                   <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>直接关联用户（followers和following）</li>
-                    <li>已star仓库的贡献者</li>
+                    <li>scale = compute_user_scale(r)</li>
+                    <li>根据 scale 分配到对应层级</li>
                   </ul>
                 </li>
-                <li>二级扩展（权重：0.3）
+                <li>类型分配
                   <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>基于用户主要语言</li>
-                    <li>基于用户主要主题</li>
-                  </ul>
-                </li>
-                <li>三级补充（权重：0.2）
-                  <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>从GitHub Trending获取活跃用户</li>
+                    <li>核心节点：P₁ 中相似度最高的用户</li>
+                    <li>扩展节点：P₂ 中的高相似度用户</li>
+                    <li>探索节点：P₃ 中的新兴用户</li>
                   </ul>
                 </li>
               </ul>
             </div>
 
             <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">仓库推荐池</h3>
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
-                <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`池大小计算：
-          • base_size = 60  # 基础池大小
-          • scale_factor = (scale - 20) × 2  # 规模因子
-          • pool_size = base_size + scale_factor
-          • 最终大小范围：[60, 100]
-
-          动态调整：
-          • 初级用户 (scale < 25)：保持基础大小 60
-          • 中级用户 (25 ≤ scale < 30)：增加 10-20
-          • 高级用户 (30 ≤ scale < 35)：增加 20-30
-          • 专家用户 (scale ≥ 35)：增加 30-40`}
-                </SyntaxHighlighter>
-              </div>
-
-              <h4 className="text-xl font-semibold mb-3">候选仓库来源</h4>
+              <h3 className="text-2xl font-semibold mb-4">结果优化</h3>
               <ul className="list-disc pl-6 space-y-2">
-                <li>一级候选（权重：0.5）
+                <li>多样性保证
                   <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>与用户已star仓库相似的仓库</li>
-                    <li>用户主要语言的热门仓库</li>
+                    <li>每个层级节点数量平衡</li>
+                    <li>不同来源节点混合</li>
+                    <li>随机打乱同类节点顺序</li>
                   </ul>
                 </li>
-                <li>二级扩展（权重：0.3）
+                <li>动态调整
                   <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>从主题相关的热门仓库</li>
-                  </ul>
-                </li>
-                <li>三级补充（权重：0.2）
-                  <ul className="list-circle pl-6 mt-2 space-y-1">
-                    <li>从GitHub Trending获取的热门仓库</li>
+                    <li>根据用户反馈调整权重</li>
+                    <li>更新候选池组成比例</li>
+                    <li>优化节点分布策略</li>
                   </ul>
                 </li>
               </ul>
@@ -440,159 +517,85 @@ Score = OR_score × 0.4 + SI × 0.3 + RQ × 0.15 + AS × 0.15`}
           </ContentSection>
 
           <ContentSection
-            id="similarity-calculation"
-            title="相似度计算算法"
-            expanded={expandedSections['similarity-calculation']}
-            toggleSection={() => toggleSection('similarity-calculation')}
+            id="repo-recommendation"
+            title="仓库推荐算法实现"
+            expanded={expandedSections['repo-recommendation']}
+            toggleSection={() => toggleSection('repo-recommendation')}
             filterContent={filterContent}
           >
             <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">用户间相似度计算</h3>
+              <h3 className="text-2xl font-semibold mb-4">推荐池构建</h3>
               <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
                 <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`1. 语言偏好相似度计算：
-• 获取所有语言列表 L = {l₁, ..., lₙ}
-• 计算每种语言的代码量占比
-• 构建归一化向量 v = (p₁, ..., pₙ)
-• 计算两向量的余弦相似度
+                  {`规模计算：
+• N = base_size + scale_factor
+  - base_size = 60
+  - scale_factor = (scale - 20) × 2
+  - N ∈ [60, 100]
 
-2. 主题兴趣相似度计算：
-• 收集两用户的所有仓库主题
-• 构建主题集合 T₁, T₂
-• 计算Jaccard系数：|T₁ ∩ T₂| / |T₁ ∪ T₂|
-
-3. 活跃度相似度计算：
-• 对followers、following、repos应用ln(x+1)转换
-• 使用不同的归一化基数(10⁴,10³,10²)
-• 应用权重(0.4,0.3,0.3)计算差异度
-• 转换为相似度(1-差异度)`}
+候选集构建：
+• P = P₁ ∪ P₂ ∪ P₃
+  - P₁ (50%)：相似仓库
+    · S = get_similar_repos(user.starred_repos)
+    · L = get_top_repos(user.languages)
+    · P₁ = S ∪ L
+  - P₂ (30%)：主题相关
+    · T = get_user_topics(user)
+    · P₂ = search_repos(topics=T)
+  - P₃ (20%)：趋势补充
+    · P₃ = get_trending_repos()`}
                 </SyntaxHighlighter>
               </div>
             </div>
 
             <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">用户-仓库相似度计算</h3>
+              <h3 className="text-2xl font-semibold mb-4">相似度计算</h3>
               <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
                 <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`1. 语言匹配度计算：
-• 统计用户所有仓库的语言使用
-• 计算每种语言的代码量占比
-• 获取仓库主要语言
-• 查找用户对应语言的使用比例
-
-2. 主题匹配度计算：
-• 收集用户的兴趣主题集合
-• 获取仓库的主题标签集合
-• 计算Jaccard相似度
-
-3. 规模时效性计算：
-• 对star数和fork数做对数转换
-• 应用权重(0.7,0.3)
-• 根据时效性应用乘数因子
-  - 1.2(活跃)或0.8(不活跃)`}
+                  {`对于每个候选仓库 r ∈ P：
+• sim(user, r) = compute_repo_similarity(user, r)
+• 按相似度降序排序
+• 选取前 N 个仓库作为推荐集 R`}
                 </SyntaxHighlighter>
               </div>
             </div>
 
             <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">仓库-仓库相似度计算</h3>
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
-                <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`1. 语言相似度计算 (40%):
-• 获取两个仓库的语言使用比例
-• 计算语言向量的余弦相似度
-
-2. 主题相似度计算 (30%):
-• 获取两个仓库的主题标签集合
-• 计算Jaccard相似度
-
-3. 贡献者重叠度 (20%):
-• 获取两个仓库的贡献者集合
-• 计算贡献者集合的Jaccard相似度
-
-4. 规模时效性相似度 (10%):
-• 计算star数和fork数的对数差异
-• 考虑最近更新时间的接近程度
-• 综合得出规模时效性相似度`}
-                </SyntaxHighlighter>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-8">
-              <h4 className="text-blue-600 font-semibold mb-2">注意事项</h4>
-              <ul className="list-disc pl-4 space-y-1 text-blue-800">
-                <li>所有相似度计算结果均在[0,1]区间内</li>
-                <li>可根据具体应用场景调整各部分的权重</li>
-                <li>对于大规模计算，考虑使用近似算法提高效率</li>
+              <h3 className="text-2xl font-semibold mb-4">节点分类</h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>规模分类
+                  <ul className="list-circle pl-6 mt-2 space-y-1">
+                    <li>scale = compute_repo_scale(r)</li>
+                    <li>根据 scale 分配到对应层级</li>
+                  </ul>
+                </li>
+                <li>类型分配
+                  <ul className="list-circle pl-6 mt-2 space-y-1">
+                    <li>核心项目：与用户高度相关的成熟项目</li>
+                    <li>热门项目：当前活跃的热门仓库</li>
+                    <li>新兴项目：近期快速增长的项目</li>
+                  </ul>
+                </li>
               </ul>
             </div>
-          </ContentSection>
-
-          <ContentSection
-            id="recommendation-implementation"
-            title="推荐算法实现"
-            expanded={expandedSections['recommendation-implementation']}
-            toggleSection={() => toggleSection('recommendation-implementation')}
-            filterContent={filterContent}
-          >
-            <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">用户推荐实现</h3>
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
-                <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`1. 推荐池构建：
-          • N = base_size + scale_factor
-          • P = P₁ ∪ P₂ ∪ P₃
-            - P₁ (50%): 直接关联用户
-            - P₂ (30%): 主题语言相关
-            - P₃ (20%): 趋势补充
-
-          2. 相似度计算：
-          • 对每个候选用户计算相似度
-          • 按相似度降序排序
-          • 选取前N个用户
-
-          3. 节点分类：
-          • 根据scale分配到对应层级
-          • 分配节点类型
-            - 核心节点：P₁中相似度最高的用户
-            - 扩展节点：P₂中的高相似度用户
-            - 探索节点：P₃中的新兴用户`}
-                </SyntaxHighlighter>
-              </div>
-            </div>
 
             <div className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">仓库推荐实现</h3>
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm mb-4">
-                <SyntaxHighlighter language="python" style={tomorrow}>
-                  {`1. 推荐池构建：
-          • N = base_size + scale_factor
-          • P = P₁ ∪ P₂ ∪ P₃
-            - P₁ (50%): 相似仓库和语言热门
-            - P₂ (30%): 主题相关
-            - P₃ (20%): 趋势补充
-
-          2. 相似度计算：
-          • 对每个候选仓库计算相似度
-          • 按相似度降序排序
-          • 选取前N个仓库
-
-          3. 节点分类：
-          • 根据scale分配到对应层级
-          • 分配节点类型
-            - 核心项目：高度相关的成熟项目
-            - 热门项目：当前活跃的热门仓库
-            - 新兴项目：近期快速增长的项目`}
-                </SyntaxHighlighter>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-8">
-              <h4 className="text-blue-600 font-semibold mb-2">结果优化</h4>
-              <ul className="list-disc pl-4 space-y-1 text-blue-800">
-                <li>多样性保证：每个层级节点数量平衡</li>
-                <li>动态调整：根据用户反馈调整权重</li>
-                <li>时效性优化：优先推荐活跃项目</li>
+              <h3 className="text-2xl font-semibold mb-4">结果优化</h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>多样性保证
+                  <ul className="list-circle pl-6 mt-2 space-y-1">
+                    <li>语言分布均衡</li>
+                    <li>主题覆盖广泛</li>
+                    <li>规模分布合理</li>
+                  </ul>
+                </li>
+                <li>时效性优化
+                  <ul className="list-circle pl-6 mt-2 space-y-1">
+                    <li>优先推荐活跃项目</li>
+                    <li>考虑更新频率</li>
+                    <li>关注社区活跃度</li>
+                  </ul>
+                </li>
               </ul>
             </div>
           </ContentSection>
